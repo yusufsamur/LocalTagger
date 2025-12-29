@@ -1,0 +1,68 @@
+/* LocalFlow - Dark Theme */
+
+QMainWindow {
+    background-color: #1e1e1e;
+}
+
+QWidget {
+    background-color: #252526;
+    color: #cccccc;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 13px;
+}
+
+QMenuBar {
+    background-color: #3c3c3c;
+    padding: 4px;
+}
+
+QMenuBar::item:selected {
+    background-color: #505050;
+}
+
+QMenu {
+    background-color: #3c3c3c;
+    border: 1px solid #555;
+}
+
+QMenu::item:selected {
+    background-color: #094771;
+}
+
+QListWidget {
+    background-color: #1e1e1e;
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+}
+
+QListWidget::item:selected {
+    background-color: #094771;
+}
+
+QListWidget::item:hover {
+    background-color: #2a2d2e;
+}
+
+QStatusBar {
+    background-color: #007acc;
+    color: white;
+}
+
+QSplitter::handle {
+    background-color: #3c3c3c;
+}
+
+QScrollBar:vertical {
+    background-color: #1e1e1e;
+    width: 12px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #5a5a5a;
+    border-radius: 6px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #787878;
+}
