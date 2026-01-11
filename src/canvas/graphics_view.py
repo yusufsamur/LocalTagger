@@ -18,6 +18,7 @@ from PySide6.QtGui import (
 
 from .graphics_scene import AnnotationScene
 from .editable_rect_item import EditableRectItem
+from .editable_polygon_item import EditablePolygonItem
 
 
 class AnnotationView(QGraphicsView):
@@ -37,6 +38,14 @@ class AnnotationView(QGraphicsView):
     bbox_moved = Signal(int, QRectF)  # (index, new_rect)
     bbox_class_change_requested = Signal(int, QPointF)  # (index, position)
     bbox_delete_requested = Signal(int)  # index
+    
+    # Polygon düzenleme sinyalleri
+    polygon_moved = Signal(int, list)  # (index, new_points)
+    polygon_class_change_requested = Signal(int, QPointF)  # (index, position)
+    polygon_delete_requested = Signal(int)  # index
+    
+    # Annotation tıklama sinyali - otomatik select moduna geçiş için
+    annotation_clicked = Signal()  # herhangi bir annotasyona tıklandığında
     
     # Zoom limitleri
     MIN_ZOOM = 0.1
@@ -710,12 +719,13 @@ class AnnotationView(QGraphicsView):
             rect_item.signals.rect_changed.connect(self.bbox_moved.emit)
             rect_item.signals.class_change_requested.connect(self.bbox_class_change_requested.emit)
             rect_item.signals.delete_requested.connect(self.bbox_delete_requested.emit)
+            rect_item.signals.clicked.connect(lambda idx: self.annotation_clicked.emit())
             
             self._scene.addItem(rect_item)
             self._annotation_items.append(rect_item)
         
-        # Polygon'ları çiz
-        for polygon in polygons:
+        # Polygon'ları çiz (düzenlenebilir)
+        for idx, polygon in enumerate(polygons):
             # Normalize koordinatları piksel koordinatlarına çevir
             points = [QPointF(x * img_w, y * img_h) for x, y in polygon.points]
             
@@ -723,18 +733,21 @@ class AnnotationView(QGraphicsView):
             label_class = class_manager.get_by_id(polygon.class_id)
             color = QColor(label_class.color) if label_class else QColor("#888888")
             
-            # Polygon oluştur
+            # Düzenlenebilir polygon oluştur
             polygon_qf = QPolygonF(points)
-            polygon_item = QGraphicsPolygonItem(polygon_qf)
-            
-            pen = QPen(color, 2)
-            pen.setStyle(Qt.PenStyle.SolidLine)
-            polygon_item.setPen(pen)
-            
-            fill = QColor(color)
-            fill.setAlphaF(0.2)
-            polygon_item.setBrush(QBrush(fill))
+            polygon_item = EditablePolygonItem(
+                polygon_qf,
+                index=idx,
+                class_id=polygon.class_id,
+                color=color
+            )
             polygon_item.setZValue(10)
+            
+            # Sinyalleri bağla
+            polygon_item.signals.polygon_changed.connect(self.polygon_moved.emit)
+            polygon_item.signals.class_change_requested.connect(self.polygon_class_change_requested.emit)
+            polygon_item.signals.delete_requested.connect(self.polygon_delete_requested.emit)
+            polygon_item.signals.clicked.connect(lambda idx: self.annotation_clicked.emit())
             
             self._scene.addItem(polygon_item)
             self._annotation_items.append(polygon_item)

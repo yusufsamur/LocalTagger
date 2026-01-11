@@ -39,6 +39,9 @@ class LocalFlowApp(QMainWindow):
         # Bekleyen bbox (popup sınıf seçimi için)
         self._pending_bbox = None  # (x1, y1, x2, y2)
         
+        # Aktif popup takibi (aynı anda sadece 1 popup)
+        self._active_popup = None
+        
         # Varsayılan sınıflar
         self._add_default_classes()
         
@@ -123,54 +126,46 @@ class LocalFlowApp(QMainWindow):
         canvas.bbox_delete_requested.connect(self._on_bbox_delete)
         canvas.bbox_class_change_requested.connect(self._on_bbox_class_change)
         
+        # Polygon düzenleme sinyalleri
+        canvas.polygon_moved.connect(self._on_polygon_moved)
+        canvas.polygon_delete_requested.connect(self._on_polygon_delete)
+        canvas.polygon_class_change_requested.connect(self._on_polygon_class_change)
+        
+        # Annotation tıklama - otomatik select moduna geçiş
+        canvas.annotation_clicked.connect(self._on_annotation_clicked)
+        
         self.main_window.tool_changed.connect(self._on_tool_changed)
+    
+    def _on_annotation_clicked(self):
+        """Bir annotasyona tıklandığında - select moduna geç."""
+        self.main_window.set_tool("select")
+    
+    def _on_popup_closed(self):
+        """Popup kapandığında - son düzenlenen türüne göre çizim moduna dön."""
+        self._active_popup = None
+        # Son düzenlenen türüne göre mod değiştir
+        last_type = getattr(self, '_last_edit_type', 'bbox')
+        self.main_window.set_tool(last_type)
         
     # ─────────────────────────────────────────────────────────────────
     # Annotation Event Handlers
     # ─────────────────────────────────────────────────────────────────
     
     def _on_bbox_created(self, x1: float, y1: float, x2: float, y2: float):
-        """BBox oluşturulduğunda - popup göster."""
+        """BBox oluşturulduğunda - hemen ekle, sonra popup göster."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             return
-        
-        # Piksel koordinatlarını sakla
-        self._pending_bbox = (x1, y1, x2, y2)
-        
-        # Popup'u bbox'ın sağ üst köşesinde göster
-        canvas = self.main_window.canvas_view
-        scene_pos = canvas.mapFromScene(x2, y1)
-        global_pos = canvas.mapToGlobal(scene_pos)
-        
-        popup = ClassSelectorPopup(
-            self.class_manager, 
-            self._last_used_class_id, 
-            self
-        )
-        popup.class_selected.connect(self._on_bbox_class_selected)
-        popup.cancelled.connect(self._on_bbox_cancelled)
-        popup.show_at(global_pos)
-    
-    def _on_bbox_class_selected(self, class_id: int):
-        """Popup'tan sınıf seçildiğinde."""
-        if not self._pending_bbox:
-            return
-        
-        x1, y1, x2, y2 = self._pending_bbox
-        self._pending_bbox = None
-        
-        image_path = self.main_window.get_current_image_path()
-        if not image_path:
-            return
-        
-        # Sınıfı güncelle
-        self._last_used_class_id = class_id
         
         # Piksel koordinatlarını normalize et
         w, h = self.main_window.canvas_view.scene.image_size
         if w == 0 or h == 0:
             return
+        
+        # Varsayılan veya son kullanılan sınıf ile hemen ekle
+        class_id = self._last_used_class_id
+        if self.class_manager.get_by_id(class_id) is None and self.class_manager.count > 0:
+            class_id = self.class_manager.classes[0].id
             
         bbox = BoundingBox(
             class_id=class_id,
@@ -182,16 +177,100 @@ class LocalFlowApp(QMainWindow):
         
         self.annotation_manager.add_bbox(image_path, bbox)
         
-        # Canvas'ı yenile - yeni bbox EditableRectItem olarak görünsün
+        # Hemen kaydet
+        self.main_window._save_current_annotations()
+        
+        # Canvas'ı yenile - bbox EditableRectItem olarak görünsün
         self.main_window.refresh_canvas()
         self.main_window.annotation_list_widget.refresh()
         
-        # Sınıf rengini güncelle
-        label_class = self.class_manager.get_by_id(class_id)
-        if label_class:
-            self.main_window.canvas_view.set_draw_color(label_class.color)
+        # Son eklenen bbox'ın indeksini sakla (sınıf değişikliği için)
+        annotations = self.annotation_manager.get_annotations(image_path)
+        self._pending_bbox_index = len(annotations.bboxes) - 1
         
-        self.statusbar.showMessage(f"✓ BBox eklendi: {label_class.name if label_class else 'object'}")
+        # Popup'u bbox'ın sağ üst köşesinde göster
+        canvas = self.main_window.canvas_view
+        scene_pos = canvas.mapFromScene(x2, y1)
+        global_pos = canvas.mapToGlobal(scene_pos)
+        
+        # Eğer zaten bir popup açıksa, yeni popup açma
+        if self._active_popup is not None:
+            return
+        
+        self._class_popup = ClassSelectorPopup(
+            self.class_manager, 
+            self._last_used_class_id, 
+            self
+        )
+        self._class_popup.class_selected.connect(self._on_new_bbox_class_selected)
+        self._class_popup.cancelled.connect(self._on_new_bbox_cancelled)
+        self._class_popup.closed.connect(self._on_popup_closed)
+        self._class_popup.show_at(global_pos)
+        
+        # Aktif popup olarak kaydet ve son düzenleme türünü belirle
+        self._last_edit_type = "bbox"
+        self._active_popup = self._class_popup
+        
+        # Select moduna geç - bbox düzenlenebilsin
+        self.main_window.set_tool("select")
+    
+    def _on_new_bbox_class_selected(self, class_id: int):
+        """Yeni bbox için popup'tan sınıf seçildiğinde."""
+        if not hasattr(self, '_pending_bbox_index'):
+            return
+        
+        index = self._pending_bbox_index
+        del self._pending_bbox_index
+        
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            return
+        
+        annotations = self.annotation_manager.get_annotations(image_path)
+        if 0 <= index < len(annotations.bboxes):
+            # Sınıfı güncelle
+            annotations.bboxes[index].class_id = class_id
+            self._last_used_class_id = class_id
+            self.annotation_manager._mark_dirty(image_path)
+            
+            # Hemen kaydet
+            self.main_window._save_current_annotations()
+            
+            # Canvas'ı yenile
+            self.main_window.refresh_canvas()
+            self.main_window.annotation_list_widget.refresh()
+            
+            # Rengi güncelle
+            label_class = self.class_manager.get_by_id(class_id)
+            if label_class:
+                self.main_window.canvas_view.set_draw_color(label_class.color)
+            
+            self.statusbar.showMessage(f"✓ BBox eklendi: {label_class.name if label_class else 'object'}")
+            
+            # Geri çizim moduna geç
+            self.main_window.set_tool("bbox")
+    
+    def _on_new_bbox_cancelled(self):
+        """Yeni bbox sınıf seçimi iptal edildiğinde - bbox'ı sil."""
+        if not hasattr(self, '_pending_bbox_index'):
+            return
+        
+        index = self._pending_bbox_index
+        del self._pending_bbox_index
+        
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            return
+        
+        # BBox'ı sil
+        self.annotation_manager.remove_bbox(image_path, index)
+        
+        # Kaydet ve yenile
+        self.main_window._save_current_annotations()
+        self.main_window.refresh_canvas()
+        self.main_window.annotation_list_widget.refresh()
+        
+        self.statusbar.showMessage("BBox iptal edildi")
     
     def _on_bbox_cancelled(self):
         """Bbox sınıf seçimi iptal edildiğinde."""
@@ -208,16 +287,45 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage("BBox iptal edildi")
         
     def _on_polygon_created(self, points: list):
-        """Polygon oluşturulduğunda."""
+        """Polygon oluşturulduğunda - popup göster."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             return
+        
+        # Piksel noktaları sakla
+        self._pending_polygon = points
+        
+        # Popup'u son noktanın yanında göster
+        if points:
+            last_x, last_y = points[-1]
+            canvas = self.main_window.canvas_view
+            from PySide6.QtCore import QPointF
+            scene_pos = canvas.mapFromScene(QPointF(last_x, last_y))
+            global_pos = canvas.mapToGlobal(scene_pos)
             
-        # Son kullanılan veya varsayılan sınıf
-        class_id = self._last_used_class_id
-        label_class = self.class_manager.get_by_id(class_id)
-        if label_class is None and self.class_manager.count > 0:
-            class_id = self.class_manager.classes[0].id
+            popup = ClassSelectorPopup(
+                self.class_manager, 
+                self._last_used_class_id, 
+                self
+            )
+            popup.class_selected.connect(self._on_polygon_class_selected)
+            popup.cancelled.connect(self._on_polygon_cancelled)
+            popup.show_at(global_pos)
+    
+    def _on_polygon_class_selected(self, class_id: int):
+        """Popup'tan polygon sınıfı seçildiğinde."""
+        if not self._pending_polygon:
+            return
+        
+        points = self._pending_polygon
+        self._pending_polygon = None
+        
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            return
+        
+        # Sınıfı güncelle
+        self._last_used_class_id = class_id
         
         # Normalize et
         w, h = self.main_window.canvas_view.scene.image_size
@@ -228,8 +336,27 @@ class LocalFlowApp(QMainWindow):
         
         polygon = Polygon(class_id=class_id, points=normalized_points)
         self.annotation_manager.add_polygon(image_path, polygon)
+        
+        # Canvas'ı yenile - polygon EditablePolygonItem olarak görünsün
+        self.main_window.refresh_canvas()
         self.main_window.annotation_list_widget.refresh()
-        self.statusbar.showMessage("✓ Polygon eklendi")
+        
+        label_class = self.class_manager.get_by_id(class_id)
+        self.statusbar.showMessage(f"✓ Polygon eklendi: {label_class.name if label_class else 'object'}")
+    
+    def _on_polygon_cancelled(self):
+        """Polygon sınıf seçimi iptal edildiğinde."""
+        if self._pending_polygon:
+            # Canvas'tan polygon'u kaldır (çizilmiş son item)
+            if self.main_window.canvas_view._annotation_items:
+                last_item = self.main_window.canvas_view._annotation_items.pop()
+                try:
+                    if last_item.scene():
+                        self.main_window.canvas_view.scene.removeItem(last_item)
+                except RuntimeError:
+                    pass
+        self._pending_polygon = None
+        self.statusbar.showMessage("Polygon iptal edildi")
         
     def _on_class_selected(self, class_id: int):
         """Sınıf seçildiğinde."""
@@ -259,7 +386,11 @@ class LocalFlowApp(QMainWindow):
             bbox.height = new_rect.height() / h
             
             self.annotation_manager._mark_dirty(image_path)
-            self.statusbar.showMessage("✓ BBox güncellendi")
+            
+            # Hemen labels klasörüne kaydet
+            self.main_window._save_current_annotations()
+            
+            self.statusbar.showMessage("✓ BBox güncellendi ve kaydedildi")
     
     def _on_bbox_delete(self, index: int):
         """BBox silindiğinde."""
@@ -280,6 +411,10 @@ class LocalFlowApp(QMainWindow):
         if not image_path:
             return
         
+        # Eğer zaten bir popup açıksa, yeni popup açma
+        if self._active_popup is not None:
+            return
+        
         # Geçerli bbox'ı sakla
         self._pending_class_change_index = index
         
@@ -294,7 +429,12 @@ class LocalFlowApp(QMainWindow):
             self
         )
         popup.class_selected.connect(self._on_bbox_class_changed)
+        popup.closed.connect(self._on_popup_closed)
         popup.show_at(global_pos)
+        
+        # Aktif popup olarak kaydet ve son düzenleme türünü belirle
+        self._last_edit_type = "bbox"
+        self._active_popup = popup
     
     def _on_bbox_class_changed(self, new_class_id: int):
         """BBox sınıfı değiştirildiğinde."""
@@ -314,12 +454,112 @@ class LocalFlowApp(QMainWindow):
             self._last_used_class_id = new_class_id
             self.annotation_manager._mark_dirty(image_path)
             
+            # Hemen kaydet
+            self.main_window._save_current_annotations()
+            
             # Canvas'ı yenile
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             
             label_class = self.class_manager.get_by_id(new_class_id)
             self.statusbar.showMessage(f"✓ BBox sınıfı güncellendi: {label_class.name if label_class else 'object'}")
+    
+    # ─────────────────────────────────────────────────────────────────
+    # Polygon Editing Handlers
+    # ─────────────────────────────────────────────────────────────────
+    
+    def _on_polygon_moved(self, index: int, new_points: list):
+        """Polygon taşındığında veya noktaları değiştiğinde."""
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            return
+        
+        annotations = self.annotation_manager.get_annotations(image_path)
+        if 0 <= index < len(annotations.polygons):
+            w, h = self.main_window.canvas_view.scene.image_size
+            if w == 0 or h == 0:
+                return
+            
+            # Normalize koordinatları
+            normalized_points = [(x / w, y / h) for x, y in new_points]
+            annotations.polygons[index].points = normalized_points
+            
+            self.annotation_manager._mark_dirty(image_path)
+            
+            # Hemen labels klasörüne kaydet
+            self.main_window._save_current_annotations()
+            
+            self.statusbar.showMessage("✓ Polygon güncellendi ve kaydedildi")
+    
+    def _on_polygon_delete(self, index: int):
+        """Polygon silindiğinde."""
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            return
+        
+        if self.annotation_manager.remove_polygon(image_path, index):
+            self.main_window.refresh_canvas()
+            self.main_window.annotation_list_widget.refresh()
+            self.statusbar.showMessage("✓ Polygon silindi")
+    
+    def _on_polygon_class_change(self, index: int, pos):
+        """Polygon sınıf değiştirme isteğinde."""
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            return
+        
+        # Eğer zaten bir popup açıksa, yeni popup açma
+        if self._active_popup is not None:
+            return
+        
+        # Geçerli polygon'u sakla
+        self._pending_polygon_class_change_index = index
+        
+        # Popup göster
+        canvas = self.main_window.canvas_view
+        view_pos = canvas.mapFromScene(pos)
+        global_pos = canvas.mapToGlobal(view_pos)
+        
+        popup = ClassSelectorPopup(
+            self.class_manager, 
+            self._last_used_class_id, 
+            self
+        )
+        popup.class_selected.connect(self._on_polygon_class_changed)
+        popup.closed.connect(self._on_popup_closed)
+        popup.show_at(global_pos)
+        
+        # Aktif popup olarak kaydet ve son düzenleme türünü belirle
+        self._last_edit_type = "polygon"
+        self._active_popup = popup
+    
+    def _on_polygon_class_changed(self, new_class_id: int):
+        """Polygon sınıfı değiştirildiğinde."""
+        if not hasattr(self, '_pending_polygon_class_change_index'):
+            return
+        
+        index = self._pending_polygon_class_change_index
+        del self._pending_polygon_class_change_index
+        
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            return
+        
+        annotations = self.annotation_manager.get_annotations(image_path)
+        if 0 <= index < len(annotations.polygons):
+            annotations.polygons[index].class_id = new_class_id
+            self._last_used_class_id = new_class_id
+            self.annotation_manager._mark_dirty(image_path)
+            
+            # Hemen kaydet
+            self.main_window._save_current_annotations()
+            
+            # Canvas'ı yenile
+            self.main_window.refresh_canvas()
+            self.main_window.annotation_list_widget.refresh()
+            
+            label_class = self.class_manager.get_by_id(new_class_id)
+            self.statusbar.showMessage(f"✓ Polygon sınıfı güncellendi: {label_class.name if label_class else 'object'}")
             
     def _on_tool_changed(self, tool: str):
         """Araç değiştiğinde."""
@@ -541,43 +781,26 @@ class LocalFlowApp(QMainWindow):
     # ─────────────────────────────────────────────────────────────────
     
     def _show_about(self):
-        about_text = """<h2>LocalFlow v2.0</h2>
-<p><b>Yerel Veri Etiketleme Aracı</b></p>
+        about_text = """<h2>LocalFlow v2.2</h2>
+<p><b>YOLO Etiketleme Aracı</b></p>
 
-<h3>🎯 Amaç</h3>
-<p>LocalFlow, makine öğrenimi projeleri için görsel etiketleme aracıdır.
-YOLO formatında bounding box ve polygon etiketlerini destekler.</p>
-
-<h3>📋 Temel Akış</h3>
-<ol>
-<li><b>Yükleme:</b> Ctrl+O ile klasör açın veya sürükle-bırak yapın</li>
-<li><b>Etiketleme:</b> W ile BBox, E ile Polygon aracını seçin</li>
-<li><b>Düzenleme:</b> Sınıf yönetimi ile sınıf ekleyin/düzenleyin</li>
-<li><b>Export:</b> Ctrl+E ile YOLO formatında dışa aktarın</li>
-</ol>
-
-<h3>⌨️ Klavye Kısayolları</h3>
+<h3>⌨️ Kısayollar</h3>
 <table>
-<tr><td><b>W</b></td><td>BBox aracı</td></tr>
-<tr><td><b>E</b></td><td>Polygon aracı</td></tr>
-<tr><td><b>A/D, ←/→</b></td><td>Görsel değiştir</td></tr>
-<tr><td><b>Ctrl+S</b></td><td>Kaydet</td></tr>
-<tr><td><b>Ctrl+E</b></td><td>YOLO Export</td></tr>
-<tr><td><b>Ctrl+O</b></td><td>Klasör aç</td></tr>
-<tr><td><b>Enter</b></td><td>Polygon'u kapat</td></tr>
-<tr><td><b>Backspace</b></td><td>Son polygon noktasını sil</td></tr>
-<tr><td><b>ESC</b></td><td>Çizimi iptal et</td></tr>
+<tr><td><b>W</b></td><td>BBox çiz</td><td><b>E</b></td><td>Polygon çiz</td></tr>
+<tr><td><b>Q</b></td><td>Düzenle</td><td><b>A/D</b></td><td>Görsel değiştir</td></tr>
+<tr><td><b>1-9</b></td><td>Sınıf seç</td><td><b>Del</b></td><td>Sil</td></tr>
+<tr><td><b>Enter</b></td><td>Onayla</td><td><b>ESC</b></td><td>İptal</td></tr>
 </table>
 
-<h3>🏷️ Sınıf Yönetimi</h3>
-<p>Düzenle > Sınıf Yönetimi menüsünden sınıfları yönetin.
-Her sınıfa benzersiz ID ve renk atanır. Sınıf silme işleminde
-mevcut etiketler için uyarı gösterilir.</p>
+<h3>💡 İpuçları</h3>
+<ul>
+<li>BBox: Çift tık = sınıf değiştir</li>
+<li>Q modu: Seç, taşı, boyutlandır</li>
+<li>Popup sürüklenebilir</li>
+<li>Otomatik kayıt aktif</li>
+</ul>
 
-<hr>
-<p style="color: gray; font-size: 11px;">
-© 2025 LocalFlow | Versiyon 2.0
-</p>
+<p style="color: gray; font-size: 10px;">© 2025 LocalFlow</p>
 """
         msg = QMessageBox(self)
         msg.setWindowTitle("LocalFlow Hakkında")

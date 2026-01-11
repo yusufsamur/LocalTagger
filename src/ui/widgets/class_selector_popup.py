@@ -20,6 +20,7 @@ class ClassSelectorPopup(QFrame):
     # Sinyaller
     class_selected = Signal(int)  # Seçilen sınıf ID'si
     cancelled = Signal()
+    closed = Signal()  # Popup kapandığında
     
     def __init__(self, class_manager, last_used_class_id: int = 0, parent=None):
         super().__init__(parent)
@@ -27,8 +28,17 @@ class ClassSelectorPopup(QFrame):
         self._last_used_class_id = last_used_class_id
         self._buttons = []
         
-        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        # Drag state for movable popup
+        self._drag_pos = None
+        
+        # Non-modal window - bbox ile etkileşime izin ver
+        self.setWindowFlags(
+            Qt.WindowType.Window | 
+            Qt.WindowType.FramelessWindowHint | 
+            Qt.WindowType.WindowStaysOnTopHint
+        )
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, False)
         
         self._setup_ui()
         
@@ -143,3 +153,27 @@ class ClassSelectorPopup(QFrame):
         self.move(global_pos)
         self.show()
         self.setFocus()
+    
+    def closeEvent(self, event):
+        """Popup kapandığında sinyal gönder."""
+        self.closed.emit()
+        super().closeEvent(event)
+    
+    def mousePressEvent(self, event):
+        """Popup'ı sürüklemek için başlangıç pozisyonunu kaydet."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint()
+        super().mousePressEvent(event)
+    
+    def mouseMoveEvent(self, event):
+        """Popup'ı sürükle."""
+        if self._drag_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            diff = event.globalPosition().toPoint() - self._drag_pos
+            self.move(self.pos() + diff)
+            self._drag_pos = event.globalPosition().toPoint()
+        super().mouseMoveEvent(event)
+    
+    def mouseReleaseEvent(self, event):
+        """Sürükleme tamamlandı."""
+        self._drag_pos = None
+        super().mouseReleaseEvent(event)
