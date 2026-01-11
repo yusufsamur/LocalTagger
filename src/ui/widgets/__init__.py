@@ -1,7 +1,10 @@
 """
 Özel Widget'lar
 ===============
-Dosya listesi, sınıf listesi ve diğer custom widget'lar.
+Sınıf listesi, etiket listesi ve diğer custom widget'lar.
 """
 
-# TODO: Widget'lar eklendikçe import edilecek
+from .class_list_widget import ClassListWidget
+from .annotation_list_widget import AnnotationListWidget
+
+__all__ = ["ClassListWidget", "AnnotationListWidget"]

@@ -56,9 +56,8 @@ class AnnotationScene(QGraphicsScene):
         Returns:
             Başarılı ise True
         """
-        # Önceki görseli temizle
-        if self._image_item is not None:
-            self.removeItem(self._image_item)
+        # Tüm önceki öğeleri temizle (görsel + etiketler)
+        self.clear()
             
         self._current_pixmap = pixmap
         self._image_item = QGraphicsPixmapItem(pixmap)
