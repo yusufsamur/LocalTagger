@@ -247,7 +247,14 @@ class EditableRectItem(QGraphicsRectItem):
     
     def keyPressEvent(self, event):
         """Klavye olayları - silme kısayolları."""
-        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+        key = event.key()
+        
+        # A/D/Left/Right tuşlarını ignore et - navigasyon için üst pencereye iletilsin
+        if key in (Qt.Key.Key_A, Qt.Key.Key_D, Qt.Key.Key_Left, Qt.Key.Key_Right):
+            event.ignore()
+            return
+        
+        if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace, Qt.Key.Key_Escape):
             self.signals.delete_requested.emit(self.index)
             event.accept()
             return

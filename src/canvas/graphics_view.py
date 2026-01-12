@@ -243,11 +243,14 @@ class AnnotationView(QGraphicsView):
         self._current_tool = tool
         
         if tool in (self.TOOL_BBOX, self.TOOL_POLYGON):
+            # CrossCursor'ı hem view hem viewport'a uygula
             self.setCursor(Qt.CursorShape.CrossCursor)
+            self.viewport().setCursor(Qt.CursorShape.CrossCursor)
             if self._scene.has_image:
                 self._show_crosshair()
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
+            self.viewport().unsetCursor()
             self._hide_crosshair()
     
     def set_draw_color(self, color: QColor | str):

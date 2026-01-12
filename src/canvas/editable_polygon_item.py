@@ -187,7 +187,7 @@ class EditablePolygonItem(QGraphicsPolygonItem):
     
     def keyPressEvent(self, event):
         """Klavye olayları - silme kısayolları."""
-        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace, Qt.Key.Key_Escape):
             self.signals.delete_requested.emit(self.index)
             event.accept()
             return

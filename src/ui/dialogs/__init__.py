@@ -4,4 +4,10 @@ Diyalog Pencereleri
 Sınıf ekleme, dışa aktarım ve ayar diyalogları.
 """
 
-# TODO: Diyaloglar eklendikçe import edilecek
+from .class_management_dialog import ClassManagementDialog
+from .export_dialog import ExportFormatDialog
+
+__all__ = [
+    "ClassManagementDialog",
+    "ExportFormatDialog"
+]

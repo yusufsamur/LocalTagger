@@ -11,6 +11,7 @@ from PySide6.QtGui import QKeySequence, QShortcut
 
 from ui.main_window import MainWindow
 from ui.dialogs.class_management_dialog import ClassManagementDialog
+from ui.dialogs.export_dialog import ExportFormatDialog
 from ui.widgets.class_selector_popup import ClassSelectorPopup
 from core.project import Project
 from core.class_manager import ClassManager
@@ -74,7 +75,7 @@ class LocalFlowApp(QMainWindow):
         file_menu.addAction("Kaydet", self._save_annotations, QKeySequence("Ctrl+S"))
         file_menu.addAction("Tümünü Kaydet", self._save_all_annotations, QKeySequence("Ctrl+Shift+S"))
         file_menu.addSeparator()
-        file_menu.addAction("YOLO Olarak Dışa Aktar...", self._export_yolo, QKeySequence("Ctrl+E"))
+        file_menu.addAction("Dışa Aktar...", self._export_labels, QKeySequence("Ctrl+E"))
         file_menu.addSeparator()
         file_menu.addAction("Çıkış", self.close, QKeySequence("Ctrl+Q"))
         
@@ -134,7 +135,16 @@ class LocalFlowApp(QMainWindow):
         # Annotation tıklama - otomatik select moduna geçiş
         canvas.annotation_clicked.connect(self._on_annotation_clicked)
         
+        # Görsel değiştiğinde popup kapat
+        self.main_window.image_selected.connect(self._on_image_changed)
+        
         self.main_window.tool_changed.connect(self._on_tool_changed)
+    
+    def _on_image_changed(self, image_path: str):
+        """Görsel değiştiğinde - açık popup'ları kapat."""
+        if self._active_popup is not None:
+            self._active_popup.close()
+            self._active_popup = None
     
     def _on_annotation_clicked(self):
         """Bir annotasyona tıklandığında - select moduna geç."""
@@ -146,6 +156,14 @@ class LocalFlowApp(QMainWindow):
         # Son düzenlenen türüne göre mod değiştir
         last_type = getattr(self, '_last_edit_type', 'bbox')
         self.main_window.set_tool(last_type)
+    
+    def _on_popup_navigate(self, direction: str):
+        """Popup'tan navigasyon isteği geldiğinde."""
+        self._active_popup = None
+        if direction == 'next':
+            self._next_image()
+        elif direction == 'prev':
+            self._prev_image()
         
     # ─────────────────────────────────────────────────────────────────
     # Annotation Event Handlers
@@ -205,6 +223,7 @@ class LocalFlowApp(QMainWindow):
         self._class_popup.class_selected.connect(self._on_new_bbox_class_selected)
         self._class_popup.cancelled.connect(self._on_new_bbox_cancelled)
         self._class_popup.closed.connect(self._on_popup_closed)
+        self._class_popup.navigate_requested.connect(self._on_popup_navigate)
         self._class_popup.show_at(global_pos)
         
         # Aktif popup olarak kaydet ve son düzenleme türünü belirle
@@ -310,7 +329,11 @@ class LocalFlowApp(QMainWindow):
             )
             popup.class_selected.connect(self._on_polygon_class_selected)
             popup.cancelled.connect(self._on_polygon_cancelled)
+            popup.navigate_requested.connect(self._on_popup_navigate)
             popup.show_at(global_pos)
+            
+            # Aktif popup olarak kaydet
+            self._active_popup = popup
     
     def _on_polygon_class_selected(self, class_id: int):
         """Popup'tan polygon sınıfı seçildiğinde."""
@@ -398,7 +421,14 @@ class LocalFlowApp(QMainWindow):
         if not image_path:
             return
         
+        # Açık popup varsa kapat
+        if self._active_popup is not None:
+            self._active_popup.close()
+            self._active_popup = None
+        
         if self.annotation_manager.remove_bbox(image_path, index):
+            # Kaydet
+            self.main_window._save_current_annotations()
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             self.statusbar.showMessage("✓ BBox silindi")
@@ -430,6 +460,7 @@ class LocalFlowApp(QMainWindow):
         )
         popup.class_selected.connect(self._on_bbox_class_changed)
         popup.closed.connect(self._on_popup_closed)
+        popup.navigate_requested.connect(self._on_popup_navigate)
         popup.show_at(global_pos)
         
         # Aktif popup olarak kaydet ve son düzenleme türünü belirle
@@ -497,7 +528,14 @@ class LocalFlowApp(QMainWindow):
         if not image_path:
             return
         
+        # Açık popup varsa kapat
+        if self._active_popup is not None:
+            self._active_popup.close()
+            self._active_popup = None
+        
         if self.annotation_manager.remove_polygon(image_path, index):
+            # Kaydet
+            self.main_window._save_current_annotations()
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             self.statusbar.showMessage("✓ Polygon silindi")
@@ -527,6 +565,7 @@ class LocalFlowApp(QMainWindow):
         )
         popup.class_selected.connect(self._on_polygon_class_changed)
         popup.closed.connect(self._on_popup_closed)
+        popup.navigate_requested.connect(self._on_popup_navigate)
         popup.show_at(global_pos)
         
         # Aktif popup olarak kaydet ve son düzenleme türünü belirle
@@ -589,52 +628,37 @@ class LocalFlowApp(QMainWindow):
     # ─────────────────────────────────────────────────────────────────
     
     def _save_annotations(self):
-        """Mevcut görselin annotasyonlarını kaydet."""
+        """Mevcut görselin annotasyonlarını labels klasörüne kaydet."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             self.statusbar.showMessage("Kaydedilecek görsel yok!")
             return
-            
-        output_dir = Path(image_path).parent
-        self.annotation_manager.save_yolo(image_path, output_dir)
-        self.statusbar.showMessage(f"✓ Kaydedildi: {Path(image_path).stem}.txt")
+        
+        # Labels klasörünü belirle
+        image_p = Path(image_path)
+        parent = image_p.parent
+        if parent.name.lower() == "images":
+            labels_dir = parent.parent / "labels"
+        else:
+            labels_dir = parent / "labels"
+        
+        labels_dir.mkdir(parents=True, exist_ok=True)
+        self.annotation_manager.save_yolo(image_path, labels_dir)
+        self.statusbar.showMessage(f"✓ Kaydedildi: {image_p.stem}.txt")
         
     def _save_all_annotations(self):
-        """Tüm annotasyonları kaydet."""
+        """Tüm annotasyonları labels klasörüne kaydet."""
         if not self.project.root_path:
             self.statusbar.showMessage("Kaynak klasör yok!")
             return
-            
-        output_dir = self.project.root_path
-        count = 0
-        for image_path in self.project.image_files:
-            self.annotation_manager.save_yolo(str(image_path), output_dir)
-            count += 1
-            
-        # classes.txt kaydet
-        self.class_manager.save_to_file(output_dir / "classes.txt")
-        self.statusbar.showMessage(f"✓ {count} dosya kaydedildi")
         
-    def _export_yolo(self):
-        """YOLO formatında dışa aktar - labels klasörüne otomatik kaydet."""
-        if not self.project.root_path:
-            self.statusbar.showMessage("Önce bir klasör açın!")
-            return
-        
-        if not self.project.image_files:
-            self.statusbar.showMessage("Export edilecek görsel yok!")
-            return
-            
-        # labels klasörünü belirle
+        # Labels klasörünü belirle
         root = self.project.root_path
         if root.name.lower() == "images":
-            # images klasörünün yanında labels oluştur
             labels_dir = root.parent / "labels"
         else:
-            # Aynı klasörde labels alt klasörü oluştur
             labels_dir = root / "labels"
         
-        # Klasörü oluştur
         labels_dir.mkdir(parents=True, exist_ok=True)
         
         count = 0
@@ -642,13 +666,36 @@ class LocalFlowApp(QMainWindow):
             self.annotation_manager.save_yolo(str(image_path), labels_dir)
             count += 1
             
+        # classes.txt kaydet
         self.class_manager.save_to_file(labels_dir / "classes.txt")
+        self.statusbar.showMessage(f"✓ {count} dosya kaydedildi")
         
-        QMessageBox.information(
-            self, "Dışa Aktarım Tamamlandı",
-            f"✓ {count} görsel YOLO formatında dışa aktarıldı.\n\n"
-            f"Konum: {labels_dir}"
+    def _export_labels(self):
+        """Dışa aktarım dialogunu aç - format seçimi ile export."""
+        if not self.project.root_path:
+            self.statusbar.showMessage("Önce bir klasör açın!")
+            return
+        
+        if not self.project.image_files:
+            self.statusbar.showMessage("Export edilecek görsel yok!")
+            return
+        
+        # Varsayılan çıktı klasörü
+        root = self.project.root_path
+        if root.name.lower() == "images":
+            default_output_dir = root.parent / "labels"
+        else:
+            default_output_dir = root / "labels"
+        
+        # Export dialog'u aç
+        dialog = ExportFormatDialog(
+            class_manager=self.class_manager,
+            annotation_manager=self.annotation_manager,
+            image_files=self.project.image_files,
+            default_output_dir=default_output_dir,
+            parent=self
         )
+        dialog.exec()
         
     def _delete_selected_annotation(self):
         """Seçili etiketi sil."""
@@ -722,7 +769,6 @@ class LocalFlowApp(QMainWindow):
             classes_path = Path(folder_path) / "classes.txt"
             if classes_path.exists():
                 self.class_manager.load_from_file(classes_path)
-                self.main_window.class_list_widget.refresh()
                 
             self.main_window.populate_file_list(self.project.image_files)
             self.main_window.file_list.setCurrentRow(0)
@@ -740,12 +786,22 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(f"🖼️ {len(image_files)} görsel yüklendi")
             
     def _next_image(self):
+        # Açık popup varsa kapat
+        if self._active_popup is not None:
+            self._active_popup.close()
+            self._active_popup = None
+        
         current = self.main_window.file_list.currentRow()
         total = self.main_window.file_list.count()
         if current < total - 1:
             self.main_window.file_list.setCurrentRow(current + 1)
             
     def _prev_image(self):
+        # Açık popup varsa kapat
+        if self._active_popup is not None:
+            self._active_popup.close()
+            self._active_popup = None
+        
         current = self.main_window.file_list.currentRow()
         if current > 0:
             self.main_window.file_list.setCurrentRow(current - 1)
@@ -781,26 +837,32 @@ class LocalFlowApp(QMainWindow):
     # ─────────────────────────────────────────────────────────────────
     
     def _show_about(self):
-        about_text = """<h2>LocalFlow v2.2</h2>
-<p><b>YOLO Etiketleme Aracı</b></p>
+        about_text = """<h2>LocalFlow v2.3</h2>
+<p><b>Veri Etiketleme Aracı</b></p>
 
 <h3>⌨️ Kısayollar</h3>
 <table>
 <tr><td><b>W</b></td><td>BBox çiz</td><td><b>E</b></td><td>Polygon çiz</td></tr>
-<tr><td><b>Q</b></td><td>Düzenle</td><td><b>A/D</b></td><td>Görsel değiştir</td></tr>
-<tr><td><b>1-9</b></td><td>Sınıf seç</td><td><b>Del</b></td><td>Sil</td></tr>
-<tr><td><b>Enter</b></td><td>Onayla</td><td><b>ESC</b></td><td>İptal</td></tr>
+<tr><td><b>Q</b></td><td>Seç/Düzenle</td><td><b>A/D</b></td><td>Görsel değiştir</td></tr>
+<tr><td><b>Ctrl+S</b></td><td>Kaydet</td><td><b>Ctrl+E</b></td><td>Dışa Aktar</td></tr>
+<tr><td><b>Del</b></td><td>Sil</td><td><b>ESC</b></td><td>İptal</td></tr>
 </table>
+
+<h3>📦 Export Formatları</h3>
+<ul>
+<li><b>YOLO</b>: v5, v6, v7, v8, v9, v10, v11</li>
+<li><b>COCO</b>: JSON formatı (segmentation dahil)</li>
+<li><b>Custom</b>: Özel TXT veya JSON format</li>
+</ul>
 
 <h3>💡 İpuçları</h3>
 <ul>
-<li>BBox: Çift tık = sınıf değiştir</li>
-<li>Q modu: Seç, taşı, boyutlandır</li>
-<li>Popup sürüklenebilir</li>
-<li>Otomatik kayıt aktif</li>
+<li>BBox/Polygon: Çift tık = sınıf değiştir</li>
+<li>Q modu: Seç, taşı, köşelerden boyutlandır</li>
+<li>Etiketler otomatik labels/ klasörüne kaydedilir</li>
 </ul>
 
-<p style="color: gray; font-size: 10px;">© 2025 LocalFlow</p>
+<p style="color: gray; font-size: 10px;">© 2026 LocalFlow</p>
 """
         msg = QMessageBox(self)
         msg.setWindowTitle("LocalFlow Hakkında")

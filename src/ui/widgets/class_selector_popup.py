@@ -21,6 +21,7 @@ class ClassSelectorPopup(QFrame):
     class_selected = Signal(int)  # Seçilen sınıf ID'si
     cancelled = Signal()
     closed = Signal()  # Popup kapandığında
+    navigate_requested = Signal(str)  # 'next' veya 'prev' - foto değiştirme isteği
     
     def __init__(self, class_manager, last_used_class_id: int = 0, parent=None):
         super().__init__(parent)
@@ -134,6 +135,18 @@ class ClassSelectorPopup(QFrame):
         # Enter - varsayılan sınıfı seç
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.class_selected.emit(self._last_used_class_id)
+            self.close()
+            return
+        
+        # A/Left - önceki görsel
+        if key in (Qt.Key.Key_A, Qt.Key.Key_Left):
+            self.navigate_requested.emit('prev')
+            self.close()
+            return
+        
+        # D/Right - sonraki görsel
+        if key in (Qt.Key.Key_D, Qt.Key.Key_Right):
+            self.navigate_requested.emit('next')
             self.close()
             return
         
