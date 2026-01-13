@@ -180,9 +180,8 @@ class EditablePolygonItem(QGraphicsPolygonItem):
             self._update_style(value)
             self.signals.selected_changed.emit(self.index, value)
         elif change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            # Drag tamamlandı - konum değişikliğini bildir
-            from PySide6.QtCore import QTimer
-            QTimer.singleShot(50, self._emit_polygon_changed)
+            # Drag tamamlandı - konum değişikliğini doğrudan bildir (race condition riski yok)
+            self._emit_polygon_changed()
         return super().itemChange(change, value)
     
     def keyPressEvent(self, event):

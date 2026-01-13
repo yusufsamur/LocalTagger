@@ -11,7 +11,7 @@ from PySide6.QtGui import QKeySequence, QShortcut
 
 from ui.main_window import MainWindow
 from ui.dialogs.class_management_dialog import ClassManagementDialog
-from ui.dialogs.export_dialog import ExportFormatDialog
+from ui.dialogs.export_dialog_v2 import ExportWizard
 from ui.widgets.class_selector_popup import ClassSelectorPopup
 from core.project import Project
 from core.class_manager import ClassManager
@@ -671,7 +671,7 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(f"✓ {count} dosya kaydedildi")
         
     def _export_labels(self):
-        """Dışa aktarım dialogunu aç - format seçimi ile export."""
+        """Dışa aktarım dialogunu aç - augmentation ve split destekli."""
         if not self.project.root_path:
             self.statusbar.showMessage("Önce bir klasör açın!")
             return
@@ -680,15 +680,21 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage("Export edilecek görsel yok!")
             return
         
+        # Export öncesi mevcut görselin etiketlerini kaydet
+        self.main_window._save_current_annotations()
+        
+        # Export öncesi tüm görsellerin etiketlerini diskten yükle
+        self._load_all_labels_for_export()
+        
         # Varsayılan çıktı klasörü
         root = self.project.root_path
         if root.name.lower() == "images":
-            default_output_dir = root.parent / "labels"
+            default_output_dir = root.parent / "export"
         else:
-            default_output_dir = root / "labels"
+            default_output_dir = root / "export"
         
-        # Export dialog'u aç
-        dialog = ExportFormatDialog(
+        # Export wizard'ı aç (v1.5)
+        dialog = ExportWizard(
             class_manager=self.class_manager,
             annotation_manager=self.annotation_manager,
             image_files=self.project.image_files,
@@ -696,6 +702,49 @@ class LocalFlowApp(QMainWindow):
             parent=self
         )
         dialog.exec()
+    
+    def _load_all_labels_for_export(self):
+        """Export öncesi tüm etiketleri diskten yükle."""
+        from pathlib import Path
+        import cv2
+        
+        root = self.project.root_path
+        if root.name.lower() == "images":
+            labels_dir = root.parent / "labels"
+        else:
+            labels_dir = root / "labels"
+        
+        if not labels_dir.exists():
+            return
+        
+        for image_path in self.project.image_files:
+            key = str(image_path)
+            
+            # Eğer bu görsel için annotation zaten yüklüyse atla
+            if key in self.annotation_manager._annotations:
+                existing = self.annotation_manager._annotations[key]
+                if existing.bboxes or existing.polygons:
+                    continue
+            
+            # Labels dosyasını bul
+            txt_path = labels_dir / f"{image_path.stem}.txt"
+            if not txt_path.exists():
+                continue
+            
+            # Görsel boyutlarını al
+            try:
+                img = cv2.imdecode(
+                    __import__('numpy').frombuffer(open(str(image_path), 'rb').read(), __import__('numpy').uint8),
+                    cv2.IMREAD_COLOR
+                )
+                if img is None:
+                    continue
+                h, w = img.shape[:2]
+            except:
+                continue
+            
+            # Etiketi yükle
+            self.annotation_manager._load_from_path(key, txt_path, w, h)
         
     def _delete_selected_annotation(self):
         """Seçili etiketi sil."""
@@ -871,3 +920,42 @@ class LocalFlowApp(QMainWindow):
         msg.setIcon(QMessageBox.Icon.Information)
         msg.exec()
 
+    def closeEvent(self, event):
+        """Uygulama kapanırken kaydedilmemiş değişiklikleri kontrol et."""
+        # Mevcut görselin etiketlerini kaydet
+        self.main_window._save_current_annotations()
+        
+        # Kaydedilmemiş değişiklik var mı kontrol et
+        if self.annotation_manager.is_dirty():
+            reply = QMessageBox.question(
+                self,
+                "Kaydedilmemiş Değişiklikler",
+                "Kaydedilmemiş değişiklikler var. Kaydetmeden çıkmak istiyor musunuz?",
+                QMessageBox.StandardButton.Save | 
+                QMessageBox.StandardButton.Discard | 
+                QMessageBox.StandardButton.Cancel
+            )
+            
+            if reply == QMessageBox.StandardButton.Save:
+                # Tüm değişiklikleri kaydet
+                self._save_all_labels()
+                event.accept()
+            elif reply == QMessageBox.StandardButton.Discard:
+                event.accept()
+            else:
+                event.ignore()
+                return
+        
+        event.accept()
+    
+    def keyPressEvent(self, event):
+        """Aktif popup varsa tuş olaylarını popup'a yönlendir."""
+        if self._active_popup is not None and self._active_popup.isVisible():
+            key = event.key()
+            # 1-9 tuşları, Enter, ESC - popup'a yönlendir
+            if (Qt.Key.Key_1 <= key <= Qt.Key.Key_9 or 
+                key in (Qt.Key.Key_Escape, Qt.Key.Key_Return, Qt.Key.Key_Enter,
+                       Qt.Key.Key_A, Qt.Key.Key_D, Qt.Key.Key_Left, Qt.Key.Key_Right)):
+                self._active_popup.keyPressEvent(event)
+                return
+        super().keyPressEvent(event)
