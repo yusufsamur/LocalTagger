@@ -504,36 +504,56 @@ class Augmentor:
         return cv2.filter2D(image, -1, kernel)
     
     def _apply_shear(self, image: np.ndarray, shear_h: float, shear_v: float) -> np.ndarray:
-        """Shear (eğiklik) uygula."""
+        """
+        Shear uygula (DigitalOcean metodolojisi).
+        
+        1. Görüntüyü genişlet (shear sonrası taşmayı önlemek için)
+        2. Shear uygula
+        3. Orijinal boyuta resize et
+        
+        Negatif shear için flip tekniği kullanılır.
+        """
         h, w = image.shape[:2]
         
-        # Shear açısını radyana çevir
+        # Shear faktörlerini hesapla
         shear_h_rad = np.tan(np.radians(shear_h))
         shear_v_rad = np.tan(np.radians(shear_v))
         
-        # Shear transform matrisi
+        # Negatif shear için flip tekniği
+        h_flip = shear_h_rad < 0
+        v_flip = shear_v_rad < 0
+        
+        if h_flip:
+            image = cv2.flip(image, 1)  # Horizontal flip
+        if v_flip:
+            image = cv2.flip(image, 0)  # Vertical flip
+        
+        abs_shear_h = abs(shear_h_rad)
+        abs_shear_v = abs(shear_v_rad)
+        
+        # Shear matrisi (orijin bazlı, pozitif değerlerle)
         M = np.float32([
-            [1, shear_h_rad, 0],
-            [shear_v_rad, 1, 0]
+            [1, abs_shear_h, 0],
+            [abs_shear_v, 1, 0]
         ])
         
-        # Yeni boyutları hesapla
-        new_w = int(w + abs(shear_h_rad) * h)
-        new_h = int(h + abs(shear_v_rad) * w)
+        # Yeni boyutlar (genişleme)
+        nW = int(w + abs_shear_h * h)
+        nH = int(h + abs_shear_v * w)
         
-        # Ofseti ayarla (negatif değerler için)
-        if shear_h_rad < 0:
-            M[0, 2] = abs(shear_h_rad) * h
-        if shear_v_rad < 0:
-            M[1, 2] = abs(shear_v_rad) * w
+        # Shear uygula
+        result = cv2.warpAffine(image, M, (nW, nH), 
+                                borderMode=cv2.BORDER_CONSTANT, 
+                                borderValue=(0, 0, 0))
         
-        # Shear uygula - siyah arka plan
-        result = cv2.warpAffine(image, M, (new_w, new_h), borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0))
+        # Flip'leri geri al
+        if h_flip:
+            result = cv2.flip(result, 1)
+        if v_flip:
+            result = cv2.flip(result, 0)
         
-        # Orijinal boyuta döndür (merkezi kırp)
-        start_x = (new_w - w) // 2
-        start_y = (new_h - h) // 2
-        result = result[start_y:start_y+h, start_x:start_x+w]
+        # Orijinal boyuta resize et
+        result = cv2.resize(result, (w, h))
         
         return result
     
@@ -548,27 +568,34 @@ class Augmentor:
         img_w: int,
         img_h: int
     ) -> Tuple[float, float, float, float]:
-        """BBox'ı transform'a göre dönüştür."""
+        """BBox'ı transform'a göre dönüştür.
+        
+        Dönüşüm sırası apply_augmentation ile AYNI olmalı:
+        1. Shear
+        2. H_flip
+        3. V_flip
+        4. Rotation
+        """
         x_center, y_center, w, h = bbox
         
-        # Flip dönüşümleri
+        # 1. Shear dönüşümü (varsa)
+        shear = transform.get("shear")
+        if shear:
+            x_center, y_center, w, h = self._shear_bbox(
+                x_center, y_center, w, h, shear.get("h", 0), shear.get("v", 0), img_w, img_h
+            )
+        
+        # 2. Flip dönüşümleri
         if transform.get("h_flip"):
             x_center = 1.0 - x_center
         if transform.get("v_flip"):
             y_center = 1.0 - y_center
         
-        # Rotation dönüşümü (varsa)
+        # 3. Rotation dönüşümü (varsa)
         rotation = transform.get("rotation")
         if rotation and abs(rotation) > 0.5:
             x_center, y_center, w, h = self._rotate_bbox(
                 x_center, y_center, w, h, rotation, img_w, img_h
-            )
-        
-        # Shear dönüşümü (varsa)
-        shear = transform.get("shear")
-        if shear:
-            x_center, y_center, w, h = self._shear_bbox(
-                x_center, y_center, w, h, shear.get("h", 0), shear.get("v", 0), img_w, img_h
             )
         
         # Koordinatları [0, 1] aralığında tut
@@ -615,10 +642,21 @@ class Augmentor:
         # Enclosing rectangle
         xs = [p[0] for p in rotated]
         ys = [p[1] for p in rotated]
-        new_cx = (min(xs) + max(xs)) / 2 / img_w
-        new_cy = (min(ys) + max(ys)) / 2 / img_h
-        new_w = (max(xs) - min(xs)) / img_w
-        new_h = (max(ys) - min(ys)) / img_h
+        
+        # Clipping: Görüntü sınırları içine al
+        min_x = max(0, min(xs))
+        max_x = min(img_w, max(xs))
+        min_y = max(0, min(ys))
+        max_y = min(img_h, max(ys))
+        
+        # Validasyon
+        if max_x <= min_x or max_y <= min_y:
+            return (0.0, 0.0, 0.0, 0.0)
+        
+        new_cx = (min_x + max_x) / 2 / img_w
+        new_cy = (min_y + max_y) / 2 / img_h
+        new_w = (max_x - min_x) / img_w
+        new_h = (max_y - min_y) / img_h
         
         return (new_cx, new_cy, new_w, new_h)
     
@@ -626,43 +664,112 @@ class Augmentor:
         self, x_c: float, y_c: float, w: float, h: float,
         shear_h: float, shear_v: float, img_w: int, img_h: int
     ) -> Tuple[float, float, float, float]:
-        """BBox'ı shear'a göre dönüştür."""
-        import math
+        """
+        BBox'ı shear'a göre dönüştür (DigitalOcean metodolojisi).
         
-        # Normalize koordinatları piksele çevir
+        _apply_shear ile AYNI mantık:
+        1. Negatif shear için koordinatları flip et
+        2. Pozitif shear matrisi uygula
+        3. Genişleme sonrası scale factor uygula
+        4. Flip'i geri al
+        5. Clip et
+        """
+        import numpy as np
+        
+        # Shear faktörlerini hesapla
+        shear_h_rad = np.tan(np.radians(shear_h))
+        shear_v_rad = np.tan(np.radians(shear_v))
+        
+        # Negatif shear için flip flag'leri
+        h_flip = shear_h_rad < 0
+        v_flip = shear_v_rad < 0
+        
+        abs_shear_h = abs(shear_h_rad)
+        abs_shear_v = abs(shear_v_rad)
+        
+        # 1. Koordinatları piksele çevir
         cx_px = x_c * img_w
         cy_px = y_c * img_h
         w_px = w * img_w
         h_px = h * img_h
         
-        # 4 köşeyi hesapla
+        # 2. 4 köşeyi hesapla (orijinal koordinatlardan)
         half_w, half_h = w_px / 2, h_px / 2
+        x1 = cx_px - half_w
+        y1 = cy_px - half_h
+        x2 = cx_px + half_w
+        y2 = cy_px + half_h
+        
+        # 3. Negatif shear için koordinatları flip et
+        if h_flip:
+            x1, x2 = img_w - x2, img_w - x1
+        if v_flip:
+            y1, y2 = img_h - y2, img_h - y1
+        
+        # 4. Shear formülü: x_new = x + shear_h * y, y_new = y + shear_v * x
+        # 4 köşeyi dönüştür
         corners = [
-            (cx_px - half_w, cy_px - half_h),
-            (cx_px + half_w, cy_px - half_h),
-            (cx_px + half_w, cy_px + half_h),
-            (cx_px - half_w, cy_px + half_h)
+            (x1 + abs_shear_h * y1, y1 + abs_shear_v * x1),  # top-left
+            (x2 + abs_shear_h * y1, y1 + abs_shear_v * x2),  # top-right
+            (x2 + abs_shear_h * y2, y2 + abs_shear_v * x2),  # bottom-right
+            (x1 + abs_shear_h * y2, y2 + abs_shear_v * x1)   # bottom-left
         ]
         
-        # Shear uygula
-        shear_h_rad = math.tan(math.radians(shear_h))
-        shear_v_rad = math.tan(math.radians(shear_v))
+        corners_x = [c[0] for c in corners]
+        corners_y = [c[1] for c in corners]
         
-        sheared = []
-        for x, y in corners:
-            x_new = x + shear_h_rad * y
-            y_new = y + shear_v_rad * x
-            sheared.append((x_new, y_new))
+        # 5. Enclosing box
+        min_x = min(corners_x)
+        max_x = max(corners_x)
+        min_y = min(corners_y)
+        max_y = max(corners_y)
         
-        # Enclosing rectangle
-        xs = [p[0] for p in sheared]
-        ys = [p[1] for p in sheared]
-        new_cx = (min(xs) + max(xs)) / 2 / img_w
-        new_cy = (min(ys) + max(ys)) / 2 / img_h
-        new_w = (max(xs) - min(xs)) / img_w
-        new_h = (max(ys) - min(ys)) / img_h
+        # 6. Flip'i geri al (genişlemiş boyutta - nW, nH)
+        nW = img_w + abs_shear_h * img_h
+        nH = img_h + abs_shear_v * img_w
         
-        return (new_cx, new_cy, new_w, new_h)
+        if h_flip:
+            old_min_x = min_x
+            min_x = nW - max_x
+            max_x = nW - old_min_x
+        if v_flip:
+            old_min_y = min_y
+            min_y = nH - max_y
+            max_y = nH - old_min_y
+        
+        # 7. Scale factor uygula (resize etkisi)
+        scale_x = nW / img_w
+        scale_y = nH / img_h
+        
+        min_x = min_x / scale_x
+        max_x = max_x / scale_x
+        min_y = min_y / scale_y
+        max_y = max_y / scale_y
+        
+        # 7. Clipping
+        min_x = np.clip(min_x, 0, img_w)
+        max_x = np.clip(max_x, 0, img_w)
+        min_y = np.clip(min_y, 0, img_h)
+        max_y = np.clip(max_y, 0, img_h)
+        
+        # 8. Yeni boyutları hesapla
+        new_w_px = max_x - min_x
+        new_h_px = max_y - min_y
+        
+        # 9. Validasyon
+        if new_w_px <= 1 or new_h_px <= 1:
+            return (0.0, 0.0, 0.0, 0.0)
+        
+        new_cx_px = min_x + new_w_px / 2
+        new_cy_px = min_y + new_h_px / 2
+        
+        # 10. Normalize et ve döndür
+        return (
+            new_cx_px / img_w,
+            new_cy_px / img_h,
+            new_w_px / img_w,
+            new_h_px / img_h
+        )
     
     def transform_polygon(
         self,
@@ -671,18 +778,66 @@ class Augmentor:
         img_w: int,
         img_h: int
     ) -> List[Tuple[float, float]]:
-        """Polygon noktalarını transform'a göre dönüştür."""
+        """Polygon noktalarını transform'a göre dönüştür.
+        
+        Dönüşüm sırası apply_augmentation ile AYNI olmalı:
+        1. Shear
+        2. H_flip
+        3. V_flip
+        4. Rotation
+        """
         import math
+        import numpy as np
         
         result = []
         for x, y in points:
-            # Flip dönüşümleri
+            # 1. Shear dönüşümü
+            shear = transform.get("shear")
+            if shear:
+                px, py = x * img_w, y * img_h
+                
+                shear_h_rad = np.tan(np.radians(shear.get("h", 0)))
+                shear_v_rad = np.tan(np.radians(shear.get("v", 0)))
+                
+                # Negatif shear için flip
+                h_flip_shear = shear_h_rad < 0
+                v_flip_shear = shear_v_rad < 0
+                
+                if h_flip_shear:
+                    px = img_w - px
+                if v_flip_shear:
+                    py = img_h - py
+                
+                abs_shear_h = abs(shear_h_rad)
+                abs_shear_v = abs(shear_v_rad)
+                
+                # Shear formülü uygula
+                new_px = px + abs_shear_h * py
+                new_py = py + abs_shear_v * px
+                
+                # Scale factor (genişleme sonrası resize etkisi)
+                nW = img_w + abs_shear_h * img_h
+                nH = img_h + abs_shear_v * img_w
+                
+                new_px = new_px / (nW / img_w)
+                new_py = new_py / (nH / img_h)
+                
+                # Flip'i geri al
+                if h_flip_shear:
+                    new_px = img_w - new_px
+                if v_flip_shear:
+                    new_py = img_h - new_py
+                
+                x = new_px / img_w
+                y = new_py / img_h
+            
+            # 2. Flip dönüşümleri
             if transform.get("h_flip"):
                 x = 1.0 - x
             if transform.get("v_flip"):
                 y = 1.0 - y
             
-            # Rotation dönüşümü
+            # 3. Rotation dönüşümü
             rotation = transform.get("rotation")
             if rotation and abs(rotation) > 0.5:
                 # Piksele çevir
@@ -693,19 +848,6 @@ class Augmentor:
                 
                 new_px = (px - center_x) * cos_a - (py - center_y) * sin_a + center_x
                 new_py = (px - center_x) * sin_a + (py - center_y) * cos_a + center_y
-                
-                x = new_px / img_w
-                y = new_py / img_h
-            
-            # Shear dönüşümü
-            shear = transform.get("shear")
-            if shear:
-                px, py = x * img_w, y * img_h
-                shear_h = math.tan(math.radians(shear.get("h", 0)))
-                shear_v = math.tan(math.radians(shear.get("v", 0)))
-                
-                new_px = px + shear_h * py
-                new_py = py + shear_v * px
                 
                 x = new_px / img_w
                 y = new_py / img_h
