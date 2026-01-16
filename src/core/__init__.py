@@ -12,6 +12,8 @@ from .exporter import (
     BaseExporter, YOLOExporter, COCOExporter, 
     CustomTXTExporter, CustomJSONExporter
 )
+from .sam_inferencer import SAMInferencer
+from .sam_worker import SAMWorker
 
 __all__ = [
     "Project", 
@@ -27,5 +29,7 @@ __all__ = [
     "YOLOExporter",
     "COCOExporter",
     "CustomTXTExporter",
-    "CustomJSONExporter"
+    "CustomJSONExporter",
+    "SAMInferencer",
+    "SAMWorker"
 ]

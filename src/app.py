@@ -17,6 +17,7 @@ from core.project import Project
 from core.class_manager import ClassManager
 from core.annotation_manager import AnnotationManager
 from core.annotation import BoundingBox, Polygon
+from core.sam_worker import SAMWorker
 
 
 class LocalFlowApp(QMainWindow):
@@ -54,6 +55,9 @@ class LocalFlowApp(QMainWindow):
         self._connect_signals()
         
         self.setAcceptDrops(True)
+        
+        # SAM Worker (AI destekli etiketleme)
+        self._setup_sam_worker()
         
     def _add_default_classes(self):
         """Varsayılan etiket sınıflarını ekle."""
@@ -113,6 +117,7 @@ class LocalFlowApp(QMainWindow):
         QShortcut(QKeySequence("Q"), self, lambda: self.main_window.set_tool("select"))
         QShortcut(QKeySequence("W"), self, lambda: self.main_window.set_tool("bbox"))
         QShortcut(QKeySequence("E"), self, lambda: self.main_window.set_tool("polygon"))
+        QShortcut(QKeySequence("T"), self, self._toggle_sam)  # AI toggle
         
     def _connect_signals(self):
         canvas = self.main_window.canvas_view
@@ -139,20 +144,32 @@ class LocalFlowApp(QMainWindow):
         self.main_window.image_selected.connect(self._on_image_changed)
         
         self.main_window.tool_changed.connect(self._on_tool_changed)
+        
+        # SAM sinyalleri
+        canvas.sam_click_requested.connect(self._on_sam_click)
+        self.main_window.sam_toggled.connect(self._on_sam_toggled)
     
     def _on_image_changed(self, image_path: str):
-        """Görsel değiştiğinde - açık popup'ları kapat."""
+        """Görsel değiştiğinde - açık popup'ları kapat ve SAM encoding başlat."""
         if self._active_popup is not None:
             self._active_popup.close()
             self._active_popup = None
+        
+        # SAM etkinse yeni görsel için encoding başlat
+        if self.main_window.sam_enabled:
+            self._encode_current_image()
     
     def _on_annotation_clicked(self):
         """Bir annotasyona tıklandığında - select moduna geç."""
         self.main_window.set_tool("select")
     
     def _on_popup_closed(self):
-        """Popup kapandığında - son düzenlenen türüne göre çizim moduna dön."""
+        """Popup kapandığında - canvas'ı yenile ve çizim moduna dön."""
         self._active_popup = None
+        
+        # Canvas'ı yenile - düzenleme işaretlerini temizle
+        self.main_window.refresh_canvas()
+        
         # Son düzenlenen türüne göre mod değiştir
         last_type = getattr(self, '_last_edit_type', 'bbox')
         self.main_window.set_tool(last_type)
@@ -380,6 +397,65 @@ class LocalFlowApp(QMainWindow):
                     pass
         self._pending_polygon = None
         self.statusbar.showMessage("Polygon iptal edildi")
+    
+    def _on_ai_polygon_class_selected(self, class_id: int):
+        """AI polygon için popup'tan sınıf seçildiğinde."""
+        if not hasattr(self, '_pending_polygon_index'):
+            return
+        
+        index = self._pending_polygon_index
+        del self._pending_polygon_index
+        
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            return
+        
+        annotations = self.annotation_manager.get_annotations(image_path)
+        if 0 <= index < len(annotations.polygons):
+            # Sınıfı güncelle
+            annotations.polygons[index].class_id = class_id
+            self._last_used_class_id = class_id
+            self.annotation_manager._mark_dirty(image_path)
+            
+            # Hemen kaydet
+            self.main_window._save_current_annotations()
+            
+            # Canvas'ı yenile
+            self.main_window.refresh_canvas()
+            self.main_window.annotation_list_widget.refresh()
+            
+            # Rengi güncelle
+            label_class = self.class_manager.get_by_id(class_id)
+            if label_class:
+                self.main_window.canvas_view.set_draw_color(label_class.color)
+            
+            self.statusbar.showMessage(f"✓ AI Polygon sınıfı: {label_class.name if label_class else 'object'}")
+            
+            # Geri polygon moduna geç
+            self.main_window.set_tool("polygon")
+    
+    def _on_ai_polygon_cancelled(self):
+        """AI polygon sınıf seçimi iptal edildiğinde - polygon'u sil."""
+        if not hasattr(self, '_pending_polygon_index'):
+            return
+        
+        index = self._pending_polygon_index
+        del self._pending_polygon_index
+        
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            return
+        
+        # Polygon'u sil
+        self.annotation_manager.remove_polygon(image_path, index)
+        
+        # Kaydet ve yenile
+        self.main_window._save_current_annotations()
+        self.main_window.refresh_canvas()
+        self.main_window.annotation_list_widget.refresh()
+        
+        self._pending_polygon = None
+        self.statusbar.showMessage("AI Polygon iptal edildi")
         
     def _on_class_selected(self, class_id: int):
         """Sınıf seçildiğinde."""
@@ -886,21 +962,30 @@ class LocalFlowApp(QMainWindow):
     # ─────────────────────────────────────────────────────────────────
     
     def _show_about(self):
-        about_text = """<h2>LocalFlow v2.3</h2>
-<p><b>Veri Etiketleme Aracı</b></p>
+        about_text = """<h2>LocalFlow v2.0</h2>
+<p><b>AI Destekli Veri Etiketleme Aracı</b></p>
+
+<h3>🤖 AI Özellikleri (MobileSAM)</h3>
+<ul>
+<li><b>T</b> tuşu ile AI'ı etkinleştir</li>
+<li>Tıkla → Otomatik BBox veya Polygon</li>
+<li>Arka planda çalışır, UI donmaz</li>
+</ul>
 
 <h3>⌨️ Kısayollar</h3>
 <table>
-<tr><td><b>W</b></td><td>BBox çiz</td><td><b>E</b></td><td>Polygon çiz</td></tr>
-<tr><td><b>Q</b></td><td>Seç/Düzenle</td><td><b>A/D</b></td><td>Görsel değiştir</td></tr>
-<tr><td><b>Ctrl+S</b></td><td>Kaydet</td><td><b>Ctrl+E</b></td><td>Dışa Aktar</td></tr>
-<tr><td><b>Del</b></td><td>Sil</td><td><b>ESC</b></td><td>İptal</td></tr>
+<tr><td><b>T</b></td><td>AI Toggle</td><td><b>W</b></td><td>BBox çiz</td></tr>
+<tr><td><b>E</b></td><td>Polygon çiz</td><td><b>Q</b></td><td>Seç/Düzenle</td></tr>
+<tr><td><b>A/D</b></td><td>Görsel değiştir</td><td><b>Ctrl+S</b></td><td>Kaydet</td></tr>
+<tr><td><b>Ctrl+E</b></td><td>Dışa Aktar</td><td><b>Del</b></td><td>Sil</td></tr>
+<tr><td><b>ESC</b></td><td>İptal</td><td></td><td></td></tr>
 </table>
 
 <h3>📦 Export Formatları</h3>
 <ul>
 <li><b>YOLO</b>: v5, v6, v7, v8, v9, v10, v11</li>
 <li><b>COCO</b>: JSON formatı (segmentation dahil)</li>
+<li><b>Pascal VOC</b>: XML formatı</li>
 <li><b>Custom</b>: Özel TXT veya JSON format</li>
 </ul>
 
@@ -909,6 +994,7 @@ class LocalFlowApp(QMainWindow):
 <li>BBox/Polygon: Çift tık = sınıf değiştir</li>
 <li>Q modu: Seç, taşı, köşelerden boyutlandır</li>
 <li>Etiketler otomatik labels/ klasörüne kaydedilir</li>
+<li>AI modunda nesneye tıkla, otomatik segmentasyon!</li>
 </ul>
 
 <p style="color: gray; font-size: 10px;">© 2026 LocalFlow</p>
@@ -959,3 +1045,195 @@ class LocalFlowApp(QMainWindow):
                 self._active_popup.keyPressEvent(event)
                 return
         super().keyPressEvent(event)
+    
+    # ─────────────────────────────────────────────────────────────────
+    # SAM / AI Integration
+    # ─────────────────────────────────────────────────────────────────
+    
+    def _setup_sam_worker(self):
+        """SAM worker'ı başlat."""
+        # Model yolları
+        resources_dir = Path(__file__).parent / "resources" / "models"
+        encoder_path = resources_dir / "mobile_sam_encoder.onnx"
+        decoder_path = resources_dir / "mobile_sam.onnx"
+        
+        # Worker oluştur
+        self._sam_worker = SAMWorker(self)
+        self._sam_worker.set_model_paths(str(encoder_path), str(decoder_path))
+        
+        # Sinyalleri bağla
+        self._sam_worker.model_loaded.connect(self._on_sam_model_loaded)
+        self._sam_worker.model_load_failed.connect(self._on_sam_model_failed)
+        self._sam_worker.encoding_started.connect(self._on_sam_encoding_started)
+        self._sam_worker.encoding_finished.connect(self._on_sam_encoding_finished)
+        self._sam_worker.mask_ready.connect(self._on_sam_mask_ready)
+        self._sam_worker.error_occurred.connect(self._on_sam_error)
+        
+        # Modelleri yükle (async)
+        self.main_window.set_sam_ready(False)
+        self._sam_worker.request_load_models()
+    
+    def _toggle_sam(self):
+        """SAM toggle kısayolu (T tuşu)."""
+        if not self._sam_worker.is_model_loaded:
+            self.statusbar.showMessage("⏳ SAM modeli yükleniyor, lütfen bekleyin...")
+            return
+        
+        current = self.main_window.sam_enabled
+        self.main_window.set_sam_enabled(not current)
+    
+    def _on_sam_toggled(self, enabled: bool):
+        """SAM toggle değiştiğinde."""
+        if enabled:
+            self.statusbar.showMessage("🤖 AI modu açıldı - Nesneye tıklayın")
+            # Eğer görsel varsa encoding başlat
+            self._encode_current_image()
+        else:
+            self.statusbar.showMessage("🤖 AI modu kapatıldı")
+    
+    def _on_sam_model_loaded(self):
+        """SAM modeli yüklendiğinde."""
+        self.main_window.set_sam_ready(True)
+        self.statusbar.showMessage("✓ SAM modeli yüklendi - T tuşu ile AI'ı etkinleştirin")
+    
+    def _on_sam_model_failed(self, error: str):
+        """SAM model yükleme hatası."""
+        self.main_window.set_sam_ready(False)
+        self.statusbar.showMessage(f"❌ SAM model hatası: {error}")
+    
+    def _on_sam_encoding_started(self):
+        """Görsel encoding başladığında."""
+        self.main_window.set_sam_status("⏳ Analiz ediliyor...")
+    
+    def _on_sam_encoding_finished(self):
+        """Görsel encoding tamamlandığında."""
+        self.main_window.set_sam_status("✓ Hazır")
+        self.statusbar.showMessage("🤖 AI hazır - Nesneye tıklayın")
+    
+    def _on_sam_error(self, error: str):
+        """SAM hatası oluştuğunda."""
+        self.main_window.set_sam_status("")
+        self.statusbar.showMessage(f"❌ SAM hatası: {error}")
+    
+    def _on_sam_click(self, x: int, y: int, mode: str):
+        """Canvas'tan SAM tıklaması geldiğinde."""
+        # Popup açıksa yeni tıklamayı engelle
+        if self._active_popup is not None:
+            return
+        
+        if not self._sam_worker.is_ready:
+            self.statusbar.showMessage("⏳ Lütfen bekleyin, görsel analiz ediliyor...")
+            return
+        
+        self.statusbar.showMessage(f"🔍 AI segmentasyon yapılıyor... ({x}, {y})")
+        self._sam_worker.request_infer_point(x, y, mode)
+    
+    def _on_sam_mask_ready(self, mask, mode: str, x: int, y: int):
+        """SAM mask hazır olduğunda."""
+        import numpy as np
+        
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            return
+        
+        w, h = self.main_window.canvas_view.scene.image_size
+        if w == 0 or h == 0:
+            return
+        
+        if mode == "bbox":
+            # Mask → BBox
+            result = self._sam_worker.get_bbox_from_mask(mask)
+            if result is None:
+                self.statusbar.showMessage("❌ Nesne bulunamadı")
+                return
+            
+            x1, y1, x2, y2 = result
+            
+            # BBox oluştur
+            self._on_bbox_created(float(x1), float(y1), float(x2), float(y2))
+            self.statusbar.showMessage(f"✓ AI BBox oluşturuldu")
+            
+        elif mode == "polygon":
+            # Mask → Polygon
+            points = self._sam_worker.get_polygon_from_mask(mask)
+            if points is None or len(points) < 3:
+                self.statusbar.showMessage("❌ Nesne bulunamadı")
+                return
+            
+            # Polygon oluştur - mevcut akışı kullan
+            self._pending_polygon = list(points)
+            
+            # Önce polygon'u geçici olarak ekle (görsel feedback için)
+            # Normalize et
+            w, h = self.main_window.canvas_view.scene.image_size
+            normalized_points = [(x / w, y / h) for x, y in points]
+            
+            class_id = self._last_used_class_id
+            if self.class_manager.get_by_id(class_id) is None and self.class_manager.count > 0:
+                class_id = self.class_manager.classes[0].id
+            
+            polygon = Polygon(class_id=class_id, points=normalized_points)
+            self.annotation_manager.add_polygon(image_path, polygon)
+            
+            # Kaydet ve yenile
+            self.main_window._save_current_annotations()
+            self.main_window.refresh_canvas()
+            self.main_window.annotation_list_widget.refresh()
+            
+            # Son eklenen polygon'un indeksini sakla
+            annotations = self.annotation_manager.get_annotations(image_path)
+            self._pending_polygon_index = len(annotations.polygons) - 1
+            
+            # Popup'u son noktanın yanında göster
+            if points:
+                last_x, last_y = points[-1]
+                canvas = self.main_window.canvas_view
+                from PySide6.QtCore import QPointF
+                scene_pos = canvas.mapFromScene(QPointF(last_x, last_y))
+                global_pos = canvas.mapToGlobal(scene_pos)
+                
+                popup = ClassSelectorPopup(
+                    self.class_manager, 
+                    self._last_used_class_id, 
+                    self
+                )
+                popup.class_selected.connect(self._on_ai_polygon_class_selected)
+                popup.cancelled.connect(self._on_ai_polygon_cancelled)
+                popup.closed.connect(self._on_popup_closed)
+                popup.navigate_requested.connect(self._on_popup_navigate)
+                popup.show_at(global_pos)
+                
+                # Aktif popup olarak kaydet ve son düzenleme türünü belirle
+                self._last_edit_type = "polygon"
+                self._active_popup = popup
+                
+                # Select moduna geç - polygon düzenlenebilsin
+                self.main_window.set_tool("select")
+                
+                self.statusbar.showMessage(f"✓ AI Polygon oluşturuldu - Sınıf seçin")
+    
+    def _encode_current_image(self):
+        """Mevcut görseli SAM için encode et."""
+        import cv2
+        import numpy as np
+        
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            return
+        
+        if not self._sam_worker.is_model_loaded:
+            return
+        
+        # Görseli oku
+        try:
+            img_data = np.frombuffer(open(image_path, 'rb').read(), np.uint8)
+            image = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
+            if image is None:
+                return
+        except Exception as e:
+            self.statusbar.showMessage(f"❌ Görsel okunamadı: {e}")
+            return
+        
+        # Encoding başlat
+        self._sam_worker.request_encode_image(image)
+

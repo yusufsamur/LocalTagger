@@ -26,6 +26,7 @@ class MainWindow(QWidget):
     # Sinyaller
     image_selected = Signal(str)
     tool_changed = Signal(str)
+    sam_toggled = Signal(bool)  # AI toggle sinyali
     
     def __init__(self, class_manager: ClassManager, 
                  annotation_manager: AnnotationManager, parent=None):
@@ -33,6 +34,7 @@ class MainWindow(QWidget):
         self._class_manager = class_manager
         self._annotation_manager = annotation_manager
         self._current_image_path = ""
+        self._sam_enabled = False  # AI toggle durumu
         
         self._setup_ui()
         self._connect_signals()
@@ -116,6 +118,42 @@ class MainWindow(QWidget):
         self.toolbar_info = QLabel("  Araç: BBox")
         self.toolbar_info.setStyleSheet("color: #888;")
         toolbar.addWidget(self.toolbar_info)
+        
+        # Sağa hizalamak için spacer
+        spacer = QWidget()
+        spacer.setSizePolicy(spacer.sizePolicy().horizontalPolicy().Expanding, 
+                             spacer.sizePolicy().verticalPolicy().Preferred)
+        toolbar.addWidget(spacer)
+        
+        # AI Toggle Butonu
+        self.sam_btn = QPushButton("🤖 AI Kapalı")
+        self.sam_btn.setCheckable(True)
+        self.sam_btn.setToolTip("MobileSAM AI destekli etiketleme (T)")
+        self.sam_btn.setStyleSheet("""
+            QPushButton {
+                padding: 6px 12px;
+                margin: 2px;
+                border-radius: 4px;
+                background: #3c3c3c;
+            }
+            QPushButton:checked {
+                background: #198754;
+                color: white;
+            }
+            QPushButton:hover {
+                background: #4a4a4a;
+            }
+            QPushButton:checked:hover {
+                background: #157347;
+            }
+        """)
+        self.sam_btn.clicked.connect(self._on_sam_toggled)
+        toolbar.addWidget(self.sam_btn)
+        
+        # SAM Status Label
+        self.sam_status = QLabel("")
+        self.sam_status.setStyleSheet("color: #888; margin-left: 8px;")
+        toolbar.addWidget(self.sam_status)
         
         return toolbar
     
@@ -331,3 +369,50 @@ class MainWindow(QWidget):
     def set_tool(self, tool: str):
         """Aracı değiştir."""
         self._on_tool_clicked(tool)
+    
+    # ─────────────────────────────────────────────────────────────────
+    # SAM / AI Methods
+    # ─────────────────────────────────────────────────────────────────
+    
+    def _on_sam_toggled(self):
+        """AI toggle butonuna tıklandığında."""
+        self._sam_enabled = self.sam_btn.isChecked()
+        
+        if self._sam_enabled:
+            self.sam_btn.setText("🤖 AI Açık")
+        else:
+            self.sam_btn.setText("🤖 AI Kapalı")
+        
+        # Canvas'a bildir
+        self.canvas_view.set_sam_enabled(self._sam_enabled)
+        self.sam_toggled.emit(self._sam_enabled)
+    
+    def set_sam_enabled(self, enabled: bool):
+        """SAM durumunu ayarla (dışarıdan)."""
+        self._sam_enabled = enabled
+        self.sam_btn.setChecked(enabled)
+        
+        if enabled:
+            self.sam_btn.setText("🤖 AI Açık")
+        else:
+            self.sam_btn.setText("🤖 AI Kapalı")
+        
+        self.canvas_view.set_sam_enabled(enabled)
+    
+    def set_sam_status(self, status: str):
+        """SAM durum mesajını ayarla."""
+        self.sam_status.setText(status)
+    
+    def set_sam_ready(self, ready: bool):
+        """SAM hazır durumunu ayarla."""
+        self.sam_btn.setEnabled(ready)
+        if not ready:
+            self.sam_status.setText("Model yükleniyor...")
+        else:
+            self.sam_status.setText("")
+    
+    @property
+    def sam_enabled(self) -> bool:
+        """SAM etkin mi?"""
+        return self._sam_enabled
+

@@ -47,6 +47,9 @@ class AnnotationView(QGraphicsView):
     # Annotation tıklama sinyali - otomatik select moduna geçiş için
     annotation_clicked = Signal()  # herhangi bir annotasyona tıklandığında
     
+    # SAM AI sinyali
+    sam_click_requested = Signal(int, int, str)  # (x, y, mode) - AI ile tıklama
+    
     # Zoom limitleri
     MIN_ZOOM = 0.1
     MAX_ZOOM = 10.0
@@ -107,6 +110,9 @@ class AnnotationView(QGraphicsView):
         
         # Çizilmiş annotation öğeleri (kalici etiketler)
         self._annotation_items: List = []
+        
+        # SAM modu
+        self._sam_enabled = False
         
     @property
     def scene(self) -> AnnotationScene:
@@ -258,6 +264,15 @@ class AnnotationView(QGraphicsView):
         if isinstance(color, str):
             color = QColor(color)
         self._draw_color = color
+    
+    def set_sam_enabled(self, enabled: bool):
+        """SAM modunu etkinleştir/devre dışı bırak."""
+        self._sam_enabled = enabled
+    
+    @property
+    def sam_enabled(self) -> bool:
+        """SAM modu etkin mi?"""
+        return self._sam_enabled
             
     def cancel_drawing(self):
         """Mevcut çizimi iptal et."""
@@ -348,6 +363,16 @@ class AnnotationView(QGraphicsView):
             
         if event.button() == Qt.MouseButton.LeftButton:
             if self._scene.has_image:
+                # SAM modu etkinse, tıklama ile AI inference yap
+                if self._sam_enabled and self._current_tool in (self.TOOL_BBOX, self.TOOL_POLYGON):
+                    scene_pos = self.mapToScene(event.pos())
+                    img_w, img_h = self._scene.image_size
+                    x = max(0, min(int(scene_pos.x()), img_w - 1))
+                    y = max(0, min(int(scene_pos.y()), img_h - 1))
+                    mode = "bbox" if self._current_tool == self.TOOL_BBOX else "polygon"
+                    self.sam_click_requested.emit(x, y, mode)
+                    return
+                
                 if self._current_tool == self.TOOL_BBOX:
                     self._start_bbox_drawing(event)
                     return
