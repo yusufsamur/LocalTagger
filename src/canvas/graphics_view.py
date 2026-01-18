@@ -49,7 +49,7 @@ class AnnotationView(QGraphicsView):
     
     # SAM AI sinyali
     sam_click_requested = Signal(int, int, str)  # (x, y, mode) - AI ile tıklama
-    sam_box_requested = Signal(int, int, int, int)  # (x1, y1, x2, y2) - AI ile bbox'tan polygon
+    sam_box_requested = Signal(int, int, int, int, str)  # (x1, y1, x2, y2, mode) - AI ile bbox'tan
     
     # Zoom limitleri
     MIN_ZOOM = 0.1
@@ -112,8 +112,8 @@ class AnnotationView(QGraphicsView):
         # Çizilmiş annotation öğeleri (kalici etiketler)
         self._annotation_items: List = []
         
-        # SAM modu
-        self._sam_enabled = False
+        # SAM modu: None, "pixel", veya "box"
+        self._sam_mode = None
         
         # Polygon+AI için bbox çizimi
         self._is_drawing_bbox_for_polygon = False
@@ -269,14 +269,19 @@ class AnnotationView(QGraphicsView):
             color = QColor(color)
         self._draw_color = color
     
-    def set_sam_enabled(self, enabled: bool):
-        """SAM modunu etkinleştir/devre dışı bırak."""
-        self._sam_enabled = enabled
+    def set_sam_mode(self, mode: str):
+        """SAM modunu ayarla - 'pixel', 'box', veya None."""
+        self._sam_mode = mode
+    
+    @property
+    def sam_mode(self) -> str:
+        """Aktif SAM modu."""
+        return self._sam_mode
     
     @property
     def sam_enabled(self) -> bool:
-        """SAM modu etkin mi?"""
-        return self._sam_enabled
+        """Herhangi bir SAM modu etkin mi?"""
+        return self._sam_mode is not None
             
     def cancel_drawing(self):
         """Mevcut çizimi iptal et."""
@@ -367,21 +372,24 @@ class AnnotationView(QGraphicsView):
             
         if event.button() == Qt.MouseButton.LeftButton:
             if self._scene.has_image:
-                # SAM modu etkinse
-                if self._sam_enabled:
-                    # BBOX modunda: tıklama ile AI inference
-                    if self._current_tool == self.TOOL_BBOX:
+                # Magic Pixel modu - nokta tıklama ile AI
+                if self._sam_mode == "pixel":
+                    if self._current_tool in (self.TOOL_BBOX, self.TOOL_POLYGON):
                         scene_pos = self.mapToScene(event.pos())
                         img_w, img_h = self._scene.image_size
                         x = max(0, min(int(scene_pos.x()), img_w - 1))
                         y = max(0, min(int(scene_pos.y()), img_h - 1))
-                        self.sam_click_requested.emit(x, y, "bbox")
-                        return
-                    # POLYGON modunda: bbox çiz, sonra segmentasyon
-                    elif self._current_tool == self.TOOL_POLYGON:
-                        self._start_bbox_for_polygon(event)
+                        mode = "bbox" if self._current_tool == self.TOOL_BBOX else "polygon"
+                        self.sam_click_requested.emit(x, y, mode)
                         return
                 
+                # Magic Box modu - bbox çizerek AI
+                if self._sam_mode == "box":
+                    if self._current_tool in (self.TOOL_BBOX, self.TOOL_POLYGON):
+                        self._start_bbox_for_sam(event)
+                        return
+                
+                # Normal çizim (AI kapalı)
                 if self._current_tool == self.TOOL_BBOX:
                     self._start_bbox_drawing(event)
                     return
@@ -409,10 +417,10 @@ class AnnotationView(QGraphicsView):
         if self._current_tool in (self.TOOL_BBOX, self.TOOL_POLYGON) and self._scene.has_image:
             self._update_crosshair(scene_pos)
             
-        # BBox çizimi (normal veya polygon+AI için)
+        # BBox çizimi (normal veya Magic Box için)
         if self._is_drawing and self._temp_rect_item:
             if self._is_drawing_bbox_for_polygon:
-                self._update_bbox_for_polygon(event)
+                self._update_bbox_for_sam(event)
             else:
                 self._update_bbox_drawing(event)
             
@@ -446,7 +454,7 @@ class AnnotationView(QGraphicsView):
         if event.button() == Qt.MouseButton.LeftButton:
             if self._is_drawing:
                 if self._is_drawing_bbox_for_polygon:
-                    self._finish_bbox_for_polygon(event)
+                    self._finish_bbox_for_sam(event)
                     return
                 elif self._current_tool == self.TOOL_BBOX:
                     self._finish_bbox_drawing(event)
@@ -471,6 +479,16 @@ class AnnotationView(QGraphicsView):
             elif event.key() == Qt.Key.Key_Escape:
                 self.cancel_drawing()
                 return
+        
+        # Seçili annotation item varken Delete/Backspace/ESC
+        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace, Qt.Key.Key_Escape):
+            selected_items = self._scene.selectedItems()
+            for item in selected_items:
+                # EditableRectItem veya EditablePolygonItem ise delete sinyali gönder
+                if hasattr(item, 'signals') and hasattr(item.signals, 'delete_requested'):
+                    item.signals.delete_requested.emit(item.index)
+                    event.accept()
+                    return
                 
         super().keyPressEvent(event)
     
@@ -571,20 +589,20 @@ class AnnotationView(QGraphicsView):
         self._temp_rect_item = None
     
     # ─────────────────────────────────────────────────────────────────
-    # Polygon+AI için BBox Çizimi (bbox → SAM → polygon)
+    # Magic Box için BBox Çizimi (bbox → SAM → bbox veya polygon)
     # ─────────────────────────────────────────────────────────────────
     
-    def _start_bbox_for_polygon(self, event: QMouseEvent):
-        """Polygon+AI modunda bbox çizimini başlat."""
+    def _start_bbox_for_sam(self, event: QMouseEvent):
+        """Magic Box modunda bbox çizimini başlat."""
         self._is_drawing = True
-        self._is_drawing_bbox_for_polygon = True
+        self._is_drawing_bbox_for_polygon = True  # Aynı flag'i kullan
         self._draw_start_pos = self.mapToScene(event.pos())
         
         from PySide6.QtWidgets import QGraphicsRectItem
         
         self._temp_rect_item = QGraphicsRectItem(QRectF(self._draw_start_pos, self._draw_start_pos))
         
-        # Özel stil: mor renkli kesikli çizgi
+        # Mor renkli kesikli çizgi (Magic Box'ı ayırt etmek için)
         pen = QPen(QColor(180, 100, 255), 2)
         pen.setStyle(Qt.PenStyle.DashLine)
         pen.setCosmetic(True)
@@ -596,8 +614,8 @@ class AnnotationView(QGraphicsView):
         
         self._scene.addItem(self._temp_rect_item)
     
-    def _update_bbox_for_polygon(self, event: QMouseEvent):
-        """Polygon+AI bbox çizimini güncelle."""
+    def _update_bbox_for_sam(self, event: QMouseEvent):
+        """Magic Box bbox çizimini güncelle."""
         if not self._temp_rect_item:
             return
             
@@ -616,8 +634,8 @@ class AnnotationView(QGraphicsView):
         
         self._temp_rect_item.setRect(QRectF(x1, y1, x2 - x1, y2 - y1))
     
-    def _finish_bbox_for_polygon(self, event: QMouseEvent):
-        """Polygon+AI bbox çizimini tamamla ve SAM'a gönder."""
+    def _finish_bbox_for_sam(self, event: QMouseEvent):
+        """Magic Box bbox çizimini tamamla ve SAM'a gönder."""
         self._is_drawing = False
         self._is_drawing_bbox_for_polygon = False
         
@@ -635,12 +653,13 @@ class AnnotationView(QGraphicsView):
         self._scene.removeItem(self._temp_rect_item)
         self._temp_rect_item = None
         
-        # SAM'a bbox gönder
+        # SAM'a bbox ve hangi mod olduğunu gönder
         x1 = int(rect.x())
         y1 = int(rect.y())
         x2 = int(rect.right())
         y2 = int(rect.bottom())
-        self.sam_box_requested.emit(x1, y1, x2, y2)
+        mode = "bbox" if self._current_tool == self.TOOL_BBOX else "polygon"
+        self.sam_box_requested.emit(x1, y1, x2, y2, mode)
     
     # ─────────────────────────────────────────────────────────────────
     # Polygon Çizimi

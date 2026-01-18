@@ -79,16 +79,17 @@ class SAMWorker(QThread):
         if not self.isRunning():
             self.start()
     
-    def request_infer_box(self, x1: int, y1: int, x2: int, y2: int):
+    def request_infer_box(self, x1: int, y1: int, x2: int, y2: int, mode: str = "polygon"):
         """
-        Box inference isteği (async) - bbox'tan polygon segmentasyonu.
+        Box inference isteği (async) - bbox'tan segmentasyon.
         
         Args:
             x1, y1: Sol üst köşe
             x2, y2: Sağ alt köşe
+            mode: 'bbox' veya 'polygon' - sonuç türü
         """
         with QMutexLocker(self._mutex):
-            self._task = ("infer_box", x1, y1, x2, y2)
+            self._task = ("infer_box", x1, y1, x2, y2, mode)
         if not self.isRunning():
             self.start()
     
@@ -130,7 +131,7 @@ class SAMWorker(QThread):
                 elif task[0] == "infer":
                     self._do_infer_point(task[1], task[2], task[3])
                 elif task[0] == "infer_box":
-                    self._do_infer_box(task[1], task[2], task[3], task[4])
+                    self._do_infer_box(task[1], task[2], task[3], task[4], task[5])
             except Exception as e:
                 self.error_occurred.emit(str(e))
     
@@ -172,7 +173,7 @@ class SAMWorker(QThread):
         except Exception as e:
             self.error_occurred.emit(f"Inference hatası: {e}")
     
-    def _do_infer_box(self, x1: int, y1: int, x2: int, y2: int):
+    def _do_infer_box(self, x1: int, y1: int, x2: int, y2: int, mode: str):
         """Box inference işlemi."""
         self.inference_started.emit()
         try:
@@ -181,8 +182,8 @@ class SAMWorker(QThread):
                     self.error_occurred.emit("Görsel encoding yapılmadı!")
                     return
                 mask = self._inferencer.infer_box(x1, y1, x2, y2)
-            # Box inference her zaman polygon olarak döner
-            self.mask_ready.emit(mask, "polygon", x1, y1)
+            # mode'a göre bbox veya polygon olarak sonuç dön
+            self.mask_ready.emit(mask, mode, x1, y1)
         except Exception as e:
             self.error_occurred.emit(f"Box inference hatası: {e}")
     

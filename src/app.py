@@ -168,15 +168,28 @@ class LocalFlowApp(QMainWindow):
         self.main_window.set_tool("select")
     
     def _on_popup_closed(self):
-        """Popup kapandığında - canvas'ı yenile ve çizim moduna dön."""
+        """Popup kapandığında - canvas'a focus ver ve çizim moduna dön."""
         self._active_popup = None
+        
+        # Düzenlenen item'ın indeksini sakla
+        editing_index = getattr(self, '_pending_class_change_index', None)
+        editing_type = getattr(self, '_last_edit_type', 'bbox')
         
         # Canvas'ı yenile - düzenleme işaretlerini temizle
         self.main_window.refresh_canvas()
         
+        # Eğer bir item düzenleniyor idiyse, o item'ı tekrar seç
+        if editing_index is not None:
+            canvas = self.main_window.canvas_view
+            if canvas._annotation_items and 0 <= editing_index < len(canvas._annotation_items):
+                item = canvas._annotation_items[editing_index]
+                item.setSelected(True)
+        
+        # Canvas'a focus ver (delete tuşları için)
+        self.main_window.canvas_view.setFocus()
+        
         # Son düzenlenen türüne göre mod değiştir
-        last_type = getattr(self, '_last_edit_type', 'bbox')
-        self.main_window.set_tool(last_type)
+        self.main_window.set_tool(editing_type)
     
     def _on_popup_navigate(self, direction: str):
         """Popup'tan navigasyon isteği geldiğinde."""
@@ -1154,8 +1167,13 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(f"🔍 AI segmentasyon yapılıyor... ({x}, {y})")
         self._sam_worker.request_infer_point(x, y, mode)
     
-    def _on_sam_box(self, x1: int, y1: int, x2: int, y2: int):
-        """Canvas'tan SAM bbox isteği geldiğinde (polygon+AI modu)."""
+    def _on_sam_box(self, x1: int, y1: int, x2: int, y2: int, mode: str):
+        """Canvas'tan SAM bbox isteği geldiğinde (Magic Box modu).
+        
+        Args:
+            x1, y1, x2, y2: Bbox koordinatları
+            mode: 'bbox' veya 'polygon' - sonucun türü
+        """
         # Popup açıksa yeni isteği engelle
         if self._active_popup is not None:
             return
@@ -1164,8 +1182,9 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage("⏳ Lütfen bekleyin, görsel analiz ediliyor...")
             return
         
-        self.statusbar.showMessage(f"🔍 AI bbox→polygon segmentasyon yapılıyor...")
-        self._sam_worker.request_infer_box(x1, y1, x2, y2)
+        mode_text = "bbox→bbox" if mode == "bbox" else "bbox→polygon"
+        self.statusbar.showMessage(f"🔍 AI {mode_text} segmentasyon yapılıyor...")
+        self._sam_worker.request_infer_box(x1, y1, x2, y2, mode)
     
     def _on_sam_mask_ready(self, mask, mode: str, x: int, y: int):
         """SAM mask hazır olduğunda."""

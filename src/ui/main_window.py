@@ -34,7 +34,8 @@ class MainWindow(QWidget):
         self._class_manager = class_manager
         self._annotation_manager = annotation_manager
         self._current_image_path = ""
-        self._sam_enabled = False  # AI toggle durumu
+        # AI mode: None, "pixel", or "box"
+        self._sam_mode = None
         
         self._setup_ui()
         self._connect_signals()
@@ -125,11 +126,11 @@ class MainWindow(QWidget):
                              spacer.sizePolicy().verticalPolicy().Preferred)
         toolbar.addWidget(spacer)
         
-        # AI Toggle Butonu
-        self.sam_btn = QPushButton("🤖 AI Kapalı")
-        self.sam_btn.setCheckable(True)
-        self.sam_btn.setToolTip("MobileSAM AI destekli etiketleme (T)")
-        self.sam_btn.setStyleSheet("""
+        # Magic Pixel Butonu
+        self.magic_pixel_btn = QPushButton("✨ Magic Pixel")
+        self.magic_pixel_btn.setCheckable(True)
+        self.magic_pixel_btn.setToolTip("Tek tıkla AI segmentasyon - Nokta tabanlı (T)")
+        self.magic_pixel_btn.setStyleSheet("""
             QPushButton {
                 padding: 6px 12px;
                 margin: 2px;
@@ -147,8 +148,33 @@ class MainWindow(QWidget):
                 background: #157347;
             }
         """)
-        self.sam_btn.clicked.connect(self._on_sam_toggled)
-        toolbar.addWidget(self.sam_btn)
+        self.magic_pixel_btn.clicked.connect(self._on_magic_pixel_clicked)
+        toolbar.addWidget(self.magic_pixel_btn)
+        
+        # Magic Box Butonu
+        self.magic_box_btn = QPushButton("📦 Magic Box")
+        self.magic_box_btn.setCheckable(True)
+        self.magic_box_btn.setToolTip("BBox çizerek AI segmentasyon - Kutu tabanlı (Y)")
+        self.magic_box_btn.setStyleSheet("""
+            QPushButton {
+                padding: 6px 12px;
+                margin: 2px;
+                border-radius: 4px;
+                background: #3c3c3c;
+            }
+            QPushButton:checked {
+                background: #6f42c1;
+                color: white;
+            }
+            QPushButton:hover {
+                background: #4a4a4a;
+            }
+            QPushButton:checked:hover {
+                background: #5a3295;
+            }
+        """)
+        self.magic_box_btn.clicked.connect(self._on_magic_box_clicked)
+        toolbar.addWidget(self.magic_box_btn)
         
         # SAM Status Label
         self.sam_status = QLabel("")
@@ -374,30 +400,41 @@ class MainWindow(QWidget):
     # SAM / AI Methods
     # ─────────────────────────────────────────────────────────────────
     
-    def _on_sam_toggled(self):
-        """AI toggle butonuna tıklandığında."""
-        self._sam_enabled = self.sam_btn.isChecked()
-        
-        if self._sam_enabled:
-            self.sam_btn.setText("🤖 AI Açık")
+    def _on_magic_pixel_clicked(self):
+        """Magic Pixel butonuna tıklandığında."""
+        if self.magic_pixel_btn.isChecked():
+            # Magic Pixel aktif - Magic Box'ı kapat
+            self.magic_box_btn.setChecked(False)
+            self._sam_mode = "pixel"
         else:
-            self.sam_btn.setText("🤖 AI Kapalı")
+            # Tekrar tıklandı - kapat
+            self._sam_mode = None
         
-        # Canvas'a bildir
-        self.canvas_view.set_sam_enabled(self._sam_enabled)
-        self.sam_toggled.emit(self._sam_enabled)
+        self._update_sam_state()
     
-    def set_sam_enabled(self, enabled: bool):
-        """SAM durumunu ayarla (dışarıdan)."""
-        self._sam_enabled = enabled
-        self.sam_btn.setChecked(enabled)
-        
-        if enabled:
-            self.sam_btn.setText("🤖 AI Açık")
+    def _on_magic_box_clicked(self):
+        """Magic Box butonuna tıklandığında."""
+        if self.magic_box_btn.isChecked():
+            # Magic Box aktif - Magic Pixel'i kapat
+            self.magic_pixel_btn.setChecked(False)
+            self._sam_mode = "box"
         else:
-            self.sam_btn.setText("🤖 AI Kapalı")
+            # Tekrar tıklandı - kapat
+            self._sam_mode = None
         
-        self.canvas_view.set_sam_enabled(enabled)
+        self._update_sam_state()
+    
+    def _update_sam_state(self):
+        """SAM durumunu canvas'a ve sinyale bildir."""
+        self.canvas_view.set_sam_mode(self._sam_mode)
+        self.sam_toggled.emit(self._sam_mode is not None)
+    
+    def set_sam_mode(self, mode: str):
+        """SAM modunu ayarla (dışarıdan) - 'pixel', 'box', veya None."""
+        self._sam_mode = mode
+        self.magic_pixel_btn.setChecked(mode == "pixel")
+        self.magic_box_btn.setChecked(mode == "box")
+        self.canvas_view.set_sam_mode(mode)
     
     def set_sam_status(self, status: str):
         """SAM durum mesajını ayarla."""
@@ -405,7 +442,8 @@ class MainWindow(QWidget):
     
     def set_sam_ready(self, ready: bool):
         """SAM hazır durumunu ayarla."""
-        self.sam_btn.setEnabled(ready)
+        self.magic_pixel_btn.setEnabled(ready)
+        self.magic_box_btn.setEnabled(ready)
         if not ready:
             self.sam_status.setText("Model yükleniyor...")
         else:
@@ -413,6 +451,11 @@ class MainWindow(QWidget):
     
     @property
     def sam_enabled(self) -> bool:
-        """SAM etkin mi?"""
-        return self._sam_enabled
+        """SAM etkin mi? (herhangi bir mod aktifse True)"""
+        return self._sam_mode is not None
+    
+    @property
+    def sam_mode(self) -> str:
+        """Aktif SAM modu - 'pixel', 'box', veya None."""
+        return self._sam_mode
 
