@@ -119,6 +119,9 @@ class LocalFlowApp(QMainWindow):
         QShortcut(QKeySequence("E"), self, lambda: self.main_window.set_tool("polygon"))
         QShortcut(QKeySequence("T"), self, self._toggle_sam)  # AI toggle
         
+        # Undo
+        QShortcut(QKeySequence("Ctrl+Z"), self, self._undo)
+        
     def _connect_signals(self):
         canvas = self.main_window.canvas_view
         canvas.zoom_changed.connect(self._on_zoom_changed)
@@ -147,6 +150,7 @@ class LocalFlowApp(QMainWindow):
         
         # SAM sinyalleri
         canvas.sam_click_requested.connect(self._on_sam_click)
+        canvas.sam_box_requested.connect(self._on_sam_box)  # Polygon+AI için bbox→polygon
         self.main_window.sam_toggled.connect(self._on_sam_toggled)
     
     def _on_image_changed(self, image_path: str):
@@ -219,12 +223,17 @@ class LocalFlowApp(QMainWindow):
         self.main_window.refresh_canvas()
         self.main_window.annotation_list_widget.refresh()
         
+        # Son eklenen bbox'ı seçili yap (kesikli çizgi görünsün)
+        canvas = self.main_window.canvas_view
+        if canvas._annotation_items:
+            last_item = canvas._annotation_items[-1]
+            last_item.setSelected(True)
+        
         # Son eklenen bbox'ın indeksini sakla (sınıf değişikliği için)
         annotations = self.annotation_manager.get_annotations(image_path)
         self._pending_bbox_index = len(annotations.bboxes) - 1
         
         # Popup'u bbox'ın sağ üst köşesinde göster
-        canvas = self.main_window.canvas_view
         scene_pos = canvas.mapFromScene(x2, y1)
         global_pos = canvas.mapToGlobal(scene_pos)
         
@@ -699,6 +708,23 @@ class LocalFlowApp(QMainWindow):
         self.main_window.refresh_canvas()
         self.statusbar.showMessage("Sınıflar güncellendi")
     
+    def _undo(self):
+        """Son işlemi geri al."""
+        if not self.annotation_manager.can_undo():
+            self.statusbar.showMessage("Geri alınacak işlem yok")
+            return
+        
+        image_path, success = self.annotation_manager.undo()
+        if success:
+            # Kaydet
+            self.main_window._save_current_annotations()
+            # Canvas'ı yenile
+            self.main_window.refresh_canvas()
+            self.main_window.annotation_list_widget.refresh()
+            self.statusbar.showMessage("↩️ Geri alındı")
+        else:
+            self.statusbar.showMessage("Geri alma başarısız")
+    
     # ─────────────────────────────────────────────────────────────────
     # Kayıt İşlemleri
     # ─────────────────────────────────────────────────────────────────
@@ -1024,7 +1050,7 @@ class LocalFlowApp(QMainWindow):
             
             if reply == QMessageBox.StandardButton.Save:
                 # Tüm değişiklikleri kaydet
-                self._save_all_labels()
+                self._save_all_annotations()
                 event.accept()
             elif reply == QMessageBox.StandardButton.Discard:
                 event.accept()
@@ -1127,6 +1153,19 @@ class LocalFlowApp(QMainWindow):
         
         self.statusbar.showMessage(f"🔍 AI segmentasyon yapılıyor... ({x}, {y})")
         self._sam_worker.request_infer_point(x, y, mode)
+    
+    def _on_sam_box(self, x1: int, y1: int, x2: int, y2: int):
+        """Canvas'tan SAM bbox isteği geldiğinde (polygon+AI modu)."""
+        # Popup açıksa yeni isteği engelle
+        if self._active_popup is not None:
+            return
+        
+        if not self._sam_worker.is_ready:
+            self.statusbar.showMessage("⏳ Lütfen bekleyin, görsel analiz ediliyor...")
+            return
+        
+        self.statusbar.showMessage(f"🔍 AI bbox→polygon segmentasyon yapılıyor...")
+        self._sam_worker.request_infer_box(x1, y1, x2, y2)
     
     def _on_sam_mask_ready(self, mask, mode: str, x: int, y: int):
         """SAM mask hazır olduğunda."""

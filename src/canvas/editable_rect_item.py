@@ -30,8 +30,11 @@ class EditableRectItem(QGraphicsRectItem):
     - Sağ tık menüsü ile sınıf değiştirme/silme
     """
     
-    CORNER_HANDLE_SIZE = 10
-    EDGE_HANDLE_SIZE = 8
+    BASE_CORNER_SIZE = 6  # Temel köşe algılama boyutu
+    MIN_CORNER_SIZE = 3   # Minimum köşe boyutu
+    MAX_CORNER_SIZE = 10  # Maksimum köşe boyutu
+    BASE_EDGE_THRESHOLD = 4  # Temel kenar algılama eşiği
+    MIN_RESIZE_SIZE = 3   # Minimum bbox boyutu (piksel)
     
     # Handle türleri
     HANDLES = ['tl', 'tr', 'bl', 'br', 'top', 'bottom', 'left', 'right']
@@ -66,40 +69,79 @@ class EditableRectItem(QGraphicsRectItem):
     def _update_style(self, selected: bool = False):
         """Görünümü güncelle."""
         if selected:
-            pen = QPen(self.color, 3)
+            pen = QPen(self.color, 2)
+            pen.setStyle(Qt.PenStyle.DashLine)  # Seçiliyken kesikli çizgi
         else:
             pen = QPen(self.color, 2)
+            pen.setStyle(Qt.PenStyle.SolidLine)
+        pen.setCosmetic(True)  # Zoom'dan bağımsız sabit çizgi kalınlığı
         self.setPen(pen)
         
         fill = QColor(self.color)
         fill.setAlphaF(0.15 if not selected else 0.25)
         self.setBrush(QBrush(fill))
         
-    def _get_handles(self) -> dict:
-        """Tüm handle noktalarını döndür (köşe + kenar)."""
-        r = self.rect()
-        cs = self.CORNER_HANDLE_SIZE
-        es = self.EDGE_HANDLE_SIZE
+    def _get_dynamic_sizes(self) -> tuple:
+        """Zoom seviyesine göre dinamik köşe ve kenar boyutları."""
+        scale = 1.0
+        if self.scene() and self.scene().views():
+            view = self.scene().views()[0]
+            scale = view.transform().m11()
+        if scale <= 0:
+            scale = 1.0
         
-        # Kenar orta noktaları
-        mid_x = r.left() + r.width() / 2
-        mid_y = r.top() + r.height() / 2
+        # Köşe boyutu: zoom arttıkça küçülsun
+        corner_size = self.BASE_CORNER_SIZE / scale
+        corner_size = max(self.MIN_CORNER_SIZE, min(corner_size, self.MAX_CORNER_SIZE))
+        
+        # Kenar eşiği: zoom arttıkça küçülsun
+        edge_threshold = self.BASE_EDGE_THRESHOLD / scale
+        edge_threshold = max(2, min(edge_threshold, 8))
+        
+        return corner_size, edge_threshold
+    
+    def _get_handles(self) -> dict:
+        """Köşe handle noktalarını döndür (dinamik boyut)."""
+        r = self.rect()
+        cs, _ = self._get_dynamic_sizes()
         
         return {
-            # Köşeler (daha büyük)
             'tl': QRectF(r.left() - cs/2, r.top() - cs/2, cs, cs),
             'tr': QRectF(r.right() - cs/2, r.top() - cs/2, cs, cs),
             'bl': QRectF(r.left() - cs/2, r.bottom() - cs/2, cs, cs),
             'br': QRectF(r.right() - cs/2, r.bottom() - cs/2, cs, cs),
-            # Kenarlar (daha küçük, dikdörtgen)
-            'top': QRectF(mid_x - es/2, r.top() - es/2, es, es),
-            'bottom': QRectF(mid_x - es/2, r.bottom() - es/2, es, es),
-            'left': QRectF(r.left() - es/2, mid_y - es/2, es, es),
-            'right': QRectF(r.right() - es/2, mid_y - es/2, es, es),
         }
     
+    def _get_edge_at(self, pos: QPointF) -> str:
+        """Kenarın herhangi bir noktasından algılama (dinamik eşik)."""
+        r = self.rect()
+        cs, t = self._get_dynamic_sizes()
+        x, y = pos.x(), pos.y()
+        
+        # Köşe bölgesi dışındaki kenar algılaması için köşe boyutunu kullan
+        corner_margin = cs / 2
+        
+        # Üst kenar (önce kenar algılama)
+        if abs(y - r.top()) < t and r.left() + corner_margin < x < r.right() - corner_margin:
+            return 'top'
+        # Alt kenar
+        if abs(y - r.bottom()) < t and r.left() + corner_margin < x < r.right() - corner_margin:
+            return 'bottom'
+        # Sol kenar
+        if abs(x - r.left()) < t and r.top() + corner_margin < y < r.bottom() - corner_margin:
+            return 'left'
+        # Sağ kenar
+        if abs(x - r.right()) < t and r.top() + corner_margin < y < r.bottom() - corner_margin:
+            return 'right'
+        return None
+    
     def _get_handle_at(self, pos: QPointF) -> str:
-        """Pozisyondaki handle'ı döndür."""
+        """Önce kenar, sonra köşe kontrol et (kenar önceliği)."""
+        # Önce kenarları kontrol et
+        edge = self._get_edge_at(pos)
+        if edge:
+            return edge
+        # Sonra köşeleri kontrol et
         handles = self._get_handles()
         for name, rect in handles.items():
             if rect.contains(pos):
@@ -121,23 +163,9 @@ class EditableRectItem(QGraphicsRectItem):
         return cursors.get(handle, Qt.CursorShape.ArrowCursor)
     
     def paint(self, painter: QPainter, option, widget=None):
-        """Çizim - handle'ları da çiz."""
+        """Sadece bbox çiz - handle daireleri yok."""
         super().paint(painter, option, widget)
-        
-        if self.isSelected():
-            handles = self._get_handles()
-            
-            for name, rect in handles.items():
-                if name in ('tl', 'tr', 'bl', 'br'):
-                    # Köşe handle'ları - yuvarlak, beyaz
-                    painter.setBrush(QBrush(Qt.GlobalColor.white))
-                    painter.setPen(QPen(self.color, 2))
-                    painter.drawEllipse(rect)
-                else:
-                    # Kenar handle'ları - kare, açık renk
-                    painter.setBrush(QBrush(QColor(200, 200, 200)))
-                    painter.setPen(QPen(self.color, 1))
-                    painter.drawRect(rect)
+        # Handle daireleri kaldırıldı - sadece kesikli çizgi seçim göstergesi olarak kullanılıyor
     
     def hoverMoveEvent(self, event):
         """Hover'da cursor'u güncelle."""
@@ -201,8 +229,8 @@ class EditableRectItem(QGraphicsRectItem):
             elif handle == 'right':
                 new_rect.setRight(old_rect.right() + delta.x())
             
-            # Minimum boyut kontrolü
-            if new_rect.width() >= 10 and new_rect.height() >= 10:
+            # Minimum boyut kontrolü (3 piksel)
+            if new_rect.width() >= self.MIN_RESIZE_SIZE and new_rect.height() >= self.MIN_RESIZE_SIZE:
                 self.setRect(new_rect.normalized())
             
             event.accept()
@@ -265,6 +293,9 @@ class EditableRectItem(QGraphicsRectItem):
         if event.button() == Qt.MouseButton.LeftButton:
             # Önce select moduna geç
             self.signals.clicked.emit(self.index)
+            # Item'ı seç ve focus ver (klavye olayları için gerekli)
+            self.setSelected(True)
+            self.setFocus(Qt.FocusReason.MouseFocusReason)
             # Sonra sınıf değiştirme popup'ı göster
             scene_pos = self.mapToScene(event.pos())
             self.signals.class_change_requested.emit(self.index, scene_pos)

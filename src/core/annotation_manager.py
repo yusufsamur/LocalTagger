@@ -17,11 +17,15 @@ class AnnotationManager:
     Bellek içi cache tutar ve disk'e kayıt yapar.
     """
     
+    MAX_UNDO_STACK = 50  # Maksimum undo sayısı
+    
     def __init__(self):
         # {image_path: ImageAnnotations}
         self._annotations: Dict[str, ImageAnnotations] = {}
         # Değişiklik takibi
         self._dirty: set = set()  # Kaydedilmemiş değişiklikler
+        # Undo stack: [(image_path, action_type, data)]
+        self._undo_stack: List[tuple] = []
         
     def get_annotations(self, image_path: str | Path) -> ImageAnnotations:
         """
@@ -47,12 +51,16 @@ class AnnotationManager:
     def add_bbox(self, image_path: str | Path, bbox: BoundingBox):
         """Görsel için BBox ekler."""
         annotations = self.get_annotations(image_path)
+        # Undo için kaydet
+        self._push_undo(str(image_path), 'add_bbox', len(annotations.bboxes))
         annotations.bboxes.append(bbox)
         self._mark_dirty(image_path)
         
     def add_polygon(self, image_path: str | Path, polygon: Polygon):
         """Görsel için Polygon ekler."""
         annotations = self.get_annotations(image_path)
+        # Undo için kaydet
+        self._push_undo(str(image_path), 'add_polygon', len(annotations.polygons))
         annotations.polygons.append(polygon)
         self._mark_dirty(image_path)
         
@@ -60,6 +68,9 @@ class AnnotationManager:
         """İndekse göre BBox siler."""
         annotations = self.get_annotations(image_path)
         if 0 <= index < len(annotations.bboxes):
+            # Undo için kaydet
+            removed_bbox = annotations.bboxes[index]
+            self._push_undo(str(image_path), 'remove_bbox', (index, removed_bbox))
             annotations.bboxes.pop(index)
             self._mark_dirty(image_path)
             return True
@@ -69,6 +80,9 @@ class AnnotationManager:
         """İndekse göre Polygon siler."""
         annotations = self.get_annotations(image_path)
         if 0 <= index < len(annotations.polygons):
+            # Undo için kaydet
+            removed_polygon = annotations.polygons[index]
+            self._push_undo(str(image_path), 'remove_polygon', (index, removed_polygon))
             annotations.polygons.pop(index)
             self._mark_dirty(image_path)
             return True
@@ -85,6 +99,52 @@ class AnnotationManager:
     def _mark_dirty(self, image_path: str | Path):
         """Görseli 'kaydedilmemiş' olarak işaretle."""
         self._dirty.add(str(image_path))
+    
+    def _push_undo(self, image_path: str, action: str, data):
+        """Undo stack'e işlem ekle."""
+        self._undo_stack.append((image_path, action, data))
+        # Stack limitini aş
+        if len(self._undo_stack) > self.MAX_UNDO_STACK:
+            self._undo_stack.pop(0)
+    
+    def undo(self) -> tuple:
+        """
+        Son işlemi geri al.
+        Returns: (image_path, success) tuple - hangi görsel etkilendi ve başarılı mı
+        """
+        if not self._undo_stack:
+            return (None, False)
+        
+        image_path, action, data = self._undo_stack.pop()
+        annotations = self.get_annotations(image_path)
+        
+        if action == 'add_bbox':
+            # Eklenen bbox'ı sil
+            index = data
+            if 0 <= index < len(annotations.bboxes):
+                annotations.bboxes.pop(index)
+        elif action == 'add_polygon':
+            # Eklenen polygon'u sil
+            index = data
+            if 0 <= index < len(annotations.polygons):
+                annotations.polygons.pop(index)
+        elif action == 'remove_bbox':
+            # Silinen bbox'ı geri ekle
+            index, bbox = data
+            annotations.bboxes.insert(index, bbox)
+        elif action == 'remove_polygon':
+            # Silinen polygon'u geri ekle
+            index, polygon = data
+            annotations.polygons.insert(index, polygon)
+        else:
+            return (image_path, False)
+        
+        self._mark_dirty(image_path)
+        return (image_path, True)
+    
+    def can_undo(self) -> bool:
+        """Geri alınabilecek işlem var mı?"""
+        return len(self._undo_stack) > 0
         
     def is_dirty(self, image_path: str | Path = None) -> bool:
         """Kaydedilmemiş değişiklik var mı?"""

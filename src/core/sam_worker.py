@@ -79,6 +79,19 @@ class SAMWorker(QThread):
         if not self.isRunning():
             self.start()
     
+    def request_infer_box(self, x1: int, y1: int, x2: int, y2: int):
+        """
+        Box inference isteği (async) - bbox'tan polygon segmentasyonu.
+        
+        Args:
+            x1, y1: Sol üst köşe
+            x2, y2: Sağ alt köşe
+        """
+        with QMutexLocker(self._mutex):
+            self._task = ("infer_box", x1, y1, x2, y2)
+        if not self.isRunning():
+            self.start()
+    
     @property
     def is_ready(self) -> bool:
         """Model yüklü ve embedding hazır mı?"""
@@ -116,6 +129,8 @@ class SAMWorker(QThread):
                     self._do_encode_image(task[1])
                 elif task[0] == "infer":
                     self._do_infer_point(task[1], task[2], task[3])
+                elif task[0] == "infer_box":
+                    self._do_infer_box(task[1], task[2], task[3], task[4])
             except Exception as e:
                 self.error_occurred.emit(str(e))
     
@@ -156,6 +171,20 @@ class SAMWorker(QThread):
             self.mask_ready.emit(mask, mode, x, y)
         except Exception as e:
             self.error_occurred.emit(f"Inference hatası: {e}")
+    
+    def _do_infer_box(self, x1: int, y1: int, x2: int, y2: int):
+        """Box inference işlemi."""
+        self.inference_started.emit()
+        try:
+            with QMutexLocker(self._mutex):
+                if self._inferencer is None or not self._inferencer.has_embedding:
+                    self.error_occurred.emit("Görsel encoding yapılmadı!")
+                    return
+                mask = self._inferencer.infer_box(x1, y1, x2, y2)
+            # Box inference her zaman polygon olarak döner
+            self.mask_ready.emit(mask, "polygon", x1, y1)
+        except Exception as e:
+            self.error_occurred.emit(f"Box inference hatası: {e}")
     
     def get_bbox_from_mask(self, mask: np.ndarray):
         """Maske'den bbox çıkar (main thread'den çağrılabilir)."""

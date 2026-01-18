@@ -116,6 +116,7 @@ class BBoxTool(BaseTool):
         # Stil ayarla
         pen = QPen(self._color, self.LINE_WIDTH)
         pen.setStyle(Qt.PenStyle.DashLine)  # Çizim sırasında kesikli çizgi
+        pen.setCosmetic(True)  # Zoom'dan bağımsız sabit çizgi kalınlığı
         self._temp_rect.setPen(pen)
         
         fill_color = QColor(self._color)
@@ -146,6 +147,7 @@ class BBoxTool(BaseTool):
         # Düz çizgi stiline geç
         pen = QPen(self._color, self.LINE_WIDTH)
         pen.setStyle(Qt.PenStyle.SolidLine)
+        pen.setCosmetic(True)  # Zoom'dan bağımsız sabit çizgi kalınlığı
         self._temp_rect.setPen(pen)
         
         # TODO: Etiket datasını kaydet

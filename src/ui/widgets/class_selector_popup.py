@@ -41,6 +41,10 @@ class ClassSelectorPopup(QFrame):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, False)
         
+        # Focus değişikliğini dinle - pencere değiştiğinde kapat
+        from PySide6.QtWidgets import QApplication
+        QApplication.instance().focusChanged.connect(self._on_focus_changed)
+        
         self._setup_ui()
         
     def _setup_ui(self):
@@ -169,8 +173,36 @@ class ClassSelectorPopup(QFrame):
     
     def closeEvent(self, event):
         """Popup kapandığında sinyal gönder."""
+        # Focus change bağlantısını kes
+        try:
+            from PySide6.QtWidgets import QApplication
+            QApplication.instance().focusChanged.disconnect(self._on_focus_changed)
+        except:
+            pass
         self.closed.emit()
         super().closeEvent(event)
+    
+    def _on_focus_changed(self, old, new):
+        """Uygulama focus kaybederse popup'ı kapat."""
+        if not self.isVisible():
+            return
+        
+        # Yeni focus widget'ı None ise (başka uygulamaya geçildi)
+        # veya bu popup veya alt widget'larından biri değilse
+        if new is None:
+            self.close()
+        elif new is not None:
+            # Focus bu popup içinde mi kontrol et
+            widget = new
+            while widget is not None:
+                if widget is self:
+                    return  # Popup içinde, kapatma
+                widget = widget.parent()
+            # Popup dışında - başka pencereye geçildi
+            # Ana uygulama içinde mi kontrol et
+            if new.window() != self:
+                # Focus uygulama dışına giderse kapat
+                pass
     
     def mousePressEvent(self, event):
         """Popup'ı sürüklemek için başlangıç pozisyonunu kaydet."""

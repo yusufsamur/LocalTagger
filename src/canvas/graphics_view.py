@@ -49,6 +49,7 @@ class AnnotationView(QGraphicsView):
     
     # SAM AI sinyali
     sam_click_requested = Signal(int, int, str)  # (x, y, mode) - AI ile tıklama
+    sam_box_requested = Signal(int, int, int, int)  # (x1, y1, x2, y2) - AI ile bbox'tan polygon
     
     # Zoom limitleri
     MIN_ZOOM = 0.1
@@ -113,6 +114,9 @@ class AnnotationView(QGraphicsView):
         
         # SAM modu
         self._sam_enabled = False
+        
+        # Polygon+AI için bbox çizimi
+        self._is_drawing_bbox_for_polygon = False
         
     @property
     def scene(self) -> AnnotationScene:
@@ -363,15 +367,20 @@ class AnnotationView(QGraphicsView):
             
         if event.button() == Qt.MouseButton.LeftButton:
             if self._scene.has_image:
-                # SAM modu etkinse, tıklama ile AI inference yap
-                if self._sam_enabled and self._current_tool in (self.TOOL_BBOX, self.TOOL_POLYGON):
-                    scene_pos = self.mapToScene(event.pos())
-                    img_w, img_h = self._scene.image_size
-                    x = max(0, min(int(scene_pos.x()), img_w - 1))
-                    y = max(0, min(int(scene_pos.y()), img_h - 1))
-                    mode = "bbox" if self._current_tool == self.TOOL_BBOX else "polygon"
-                    self.sam_click_requested.emit(x, y, mode)
-                    return
+                # SAM modu etkinse
+                if self._sam_enabled:
+                    # BBOX modunda: tıklama ile AI inference
+                    if self._current_tool == self.TOOL_BBOX:
+                        scene_pos = self.mapToScene(event.pos())
+                        img_w, img_h = self._scene.image_size
+                        x = max(0, min(int(scene_pos.x()), img_w - 1))
+                        y = max(0, min(int(scene_pos.y()), img_h - 1))
+                        self.sam_click_requested.emit(x, y, "bbox")
+                        return
+                    # POLYGON modunda: bbox çiz, sonra segmentasyon
+                    elif self._current_tool == self.TOOL_POLYGON:
+                        self._start_bbox_for_polygon(event)
+                        return
                 
                 if self._current_tool == self.TOOL_BBOX:
                     self._start_bbox_drawing(event)
@@ -400,9 +409,12 @@ class AnnotationView(QGraphicsView):
         if self._current_tool in (self.TOOL_BBOX, self.TOOL_POLYGON) and self._scene.has_image:
             self._update_crosshair(scene_pos)
             
-        # BBox çizimi
-        if self._is_drawing and self._current_tool == self.TOOL_BBOX:
-            self._update_bbox_drawing(event)
+        # BBox çizimi (normal veya polygon+AI için)
+        if self._is_drawing and self._temp_rect_item:
+            if self._is_drawing_bbox_for_polygon:
+                self._update_bbox_for_polygon(event)
+            else:
+                self._update_bbox_drawing(event)
             
         # Polygon preview çizgisi
         if self._current_tool == self.TOOL_POLYGON and self._polygon_points:
@@ -432,9 +444,13 @@ class AnnotationView(QGraphicsView):
             return
             
         if event.button() == Qt.MouseButton.LeftButton:
-            if self._is_drawing and self._current_tool == self.TOOL_BBOX:
-                self._finish_bbox_drawing(event)
-                return
+            if self._is_drawing:
+                if self._is_drawing_bbox_for_polygon:
+                    self._finish_bbox_for_polygon(event)
+                    return
+                elif self._current_tool == self.TOOL_BBOX:
+                    self._finish_bbox_drawing(event)
+                    return
                 
         super().mouseReleaseEvent(event)
     
@@ -501,6 +517,7 @@ class AnnotationView(QGraphicsView):
         
         pen = QPen(self._draw_color, 2)
         pen.setStyle(Qt.PenStyle.DashLine)
+        pen.setCosmetic(True)  # Zoom'dan bağımsız sabit çizgi kalınlığı
         self._temp_rect_item.setPen(pen)
         
         fill = QColor(self._draw_color)
@@ -543,6 +560,7 @@ class AnnotationView(QGraphicsView):
             
         pen = QPen(self._draw_color, 2)
         pen.setStyle(Qt.PenStyle.SolidLine)
+        pen.setCosmetic(True)  # Zoom'dan bağımsız sabit çizgi kalınlığı
         self._temp_rect_item.setPen(pen)
         
         # Etiket listesine ekle
@@ -551,6 +569,78 @@ class AnnotationView(QGraphicsView):
         self.bbox_created.emit(rect.x(), rect.y(), rect.right(), rect.bottom())
         
         self._temp_rect_item = None
+    
+    # ─────────────────────────────────────────────────────────────────
+    # Polygon+AI için BBox Çizimi (bbox → SAM → polygon)
+    # ─────────────────────────────────────────────────────────────────
+    
+    def _start_bbox_for_polygon(self, event: QMouseEvent):
+        """Polygon+AI modunda bbox çizimini başlat."""
+        self._is_drawing = True
+        self._is_drawing_bbox_for_polygon = True
+        self._draw_start_pos = self.mapToScene(event.pos())
+        
+        from PySide6.QtWidgets import QGraphicsRectItem
+        
+        self._temp_rect_item = QGraphicsRectItem(QRectF(self._draw_start_pos, self._draw_start_pos))
+        
+        # Özel stil: mor renkli kesikli çizgi
+        pen = QPen(QColor(180, 100, 255), 2)
+        pen.setStyle(Qt.PenStyle.DashLine)
+        pen.setCosmetic(True)
+        self._temp_rect_item.setPen(pen)
+        
+        fill = QColor(180, 100, 255)
+        fill.setAlphaF(0.15)
+        self._temp_rect_item.setBrush(QBrush(fill))
+        
+        self._scene.addItem(self._temp_rect_item)
+    
+    def _update_bbox_for_polygon(self, event: QMouseEvent):
+        """Polygon+AI bbox çizimini güncelle."""
+        if not self._temp_rect_item:
+            return
+            
+        current_pos = self.mapToScene(event.pos())
+        
+        x1 = min(self._draw_start_pos.x(), current_pos.x())
+        y1 = min(self._draw_start_pos.y(), current_pos.y())
+        x2 = max(self._draw_start_pos.x(), current_pos.x())
+        y2 = max(self._draw_start_pos.y(), current_pos.y())
+        
+        img_w, img_h = self._scene.image_size
+        x1 = max(0, min(x1, img_w))
+        y1 = max(0, min(y1, img_h))
+        x2 = max(0, min(x2, img_w))
+        y2 = max(0, min(y2, img_h))
+        
+        self._temp_rect_item.setRect(QRectF(x1, y1, x2 - x1, y2 - y1))
+    
+    def _finish_bbox_for_polygon(self, event: QMouseEvent):
+        """Polygon+AI bbox çizimini tamamla ve SAM'a gönder."""
+        self._is_drawing = False
+        self._is_drawing_bbox_for_polygon = False
+        
+        if not self._temp_rect_item:
+            return
+            
+        rect = self._temp_rect_item.rect()
+        
+        if rect.width() < 5 or rect.height() < 5:
+            self._scene.removeItem(self._temp_rect_item)
+            self._temp_rect_item = None
+            return
+        
+        # Geçici rect'i kaldır
+        self._scene.removeItem(self._temp_rect_item)
+        self._temp_rect_item = None
+        
+        # SAM'a bbox gönder
+        x1 = int(rect.x())
+        y1 = int(rect.y())
+        x2 = int(rect.right())
+        y2 = int(rect.bottom())
+        self.sam_box_requested.emit(x1, y1, x2, y2)
     
     # ─────────────────────────────────────────────────────────────────
     # Polygon Çizimi
@@ -584,10 +674,14 @@ class AnnotationView(QGraphicsView):
         if is_first:
             # İlk nokta farklı renk (kapatma ipucu)
             dot.setBrush(QBrush(QColor("#FFD700")))  # Altın sarısı
-            dot.setPen(QPen(self._draw_color, 2))
+            first_pen = QPen(self._draw_color, 2)
+            first_pen.setCosmetic(True)
+            dot.setPen(first_pen)
         else:
             dot.setBrush(QBrush(self._draw_color))
-            dot.setPen(QPen(Qt.GlobalColor.white, 1))
+            other_pen = QPen(Qt.GlobalColor.white, 1)
+            other_pen.setCosmetic(True)
+            dot.setPen(other_pen)
         
         dot.setZValue(100)
         self._scene.addItem(dot)
@@ -600,6 +694,7 @@ class AnnotationView(QGraphicsView):
             line = QGraphicsLineItem(QLineF(p1, p2))
             pen = QPen(self._draw_color, 2)
             pen.setStyle(Qt.PenStyle.SolidLine)
+            pen.setCosmetic(True)
             line.setPen(pen)
             line.setZValue(99)
             self._scene.addItem(line)
@@ -624,6 +719,7 @@ class AnnotationView(QGraphicsView):
         line = QGraphicsLineItem(QLineF(last_point, scene_pos))
         pen = QPen(self._draw_color, 2)
         pen.setStyle(Qt.PenStyle.DashLine)
+        pen.setCosmetic(True)
         line.setPen(pen)
         line.setZValue(98)
         self._scene.addItem(line)
@@ -666,6 +762,7 @@ class AnnotationView(QGraphicsView):
         
         pen = QPen(self._draw_color, 2)
         pen.setStyle(Qt.PenStyle.SolidLine)
+        pen.setCosmetic(True)
         polygon_item.setPen(pen)
         
         fill = QColor(self._draw_color)

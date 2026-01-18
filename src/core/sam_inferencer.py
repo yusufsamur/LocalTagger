@@ -149,6 +149,74 @@ class SAMInferencer:
         
         return final_mask
     
+    def infer_box(self, x1: int, y1: int, x2: int, y2: int) -> np.ndarray:
+        """
+        Bounding box'tan maske üret.
+        
+        Args:
+            x1, y1: Sol üst köşe (orijinal görsel koordinatları)
+            x2, y2: Sağ alt köşe (orijinal görsel koordinatları)
+            
+        Returns:
+            Binary maske (uint8, 0 veya 1), orijinal görsel boyutunda
+        """
+        if not self.has_embedding:
+            raise RuntimeError("Görsel ayarlanmadı! Önce set_image() çağırın.")
+        
+        # Koordinatları scale et
+        onnx_x1 = x1 * self._scale_factor
+        onnx_y1 = y1 * self._scale_factor
+        onnx_x2 = x2 * self._scale_factor
+        onnx_y2 = y2 * self._scale_factor
+        
+        # Box prompt için 2 nokta (sol-üst ve sağ-alt köşeler)
+        # Label: 2 = upper-left corner, 3 = lower-right corner
+        box_coords = np.array([
+            [onnx_x1, onnx_y1],
+            [onnx_x2, onnx_y2]
+        ], dtype=np.float32)
+        box_labels = np.array([2, 3], dtype=np.float32)  # 2=top-left, 3=bottom-right
+        
+        # 5 nokta padding (2 gerçek + 3 dummy)
+        onnx_coord = np.concatenate([
+            box_coords,
+            np.array([[0.0, 0.0]] * 3, dtype=np.float32)
+        ], axis=0)[None, :, :]
+        
+        onnx_label = np.concatenate([
+            box_labels,
+            np.array([-1] * 3, dtype=np.float32)
+        ], axis=0)[None, :]
+        
+        mask_input = np.zeros((1, 1, 256, 256), dtype=np.float32)
+        has_mask_input = np.zeros(1, dtype=np.float32)
+        orig_size = np.array(self._original_size, dtype=np.float32)
+        
+        ort_inputs = {
+            "image_embeddings": self._image_embedding.astype(np.float32),
+            "point_coords": onnx_coord.astype(np.float32),
+            "point_labels": onnx_label.astype(np.float32),
+            "mask_input": mask_input.astype(np.float32),
+            "has_mask_input": has_mask_input.astype(np.float32),
+            "orig_im_size": orig_size.astype(np.float32)
+        }
+        
+        masks, _, _ = self._decoder_session.run(None, ort_inputs)
+        
+        # Binary maske oluştur
+        final_mask = masks[0, 0, :, :]
+        final_mask = (final_mask > 0).astype(np.uint8)
+        
+        # Orijinal boyuta resize et
+        if final_mask.shape[:2] != self._original_size:
+            final_mask = cv2.resize(
+                final_mask, 
+                (self._original_size[1], self._original_size[0]),  # (W, H)
+                interpolation=cv2.INTER_NEAREST
+            )
+        
+        return final_mask
+    
     def mask_to_bbox(self, mask: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
         """
         Maske'den bounding box çıkar.

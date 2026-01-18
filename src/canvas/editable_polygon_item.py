@@ -28,7 +28,9 @@ class EditablePolygonItem(QGraphicsPolygonItem):
     - Sağ tık menüsü ile sınıf değiştirme/silme
     """
     
-    VERTEX_SIZE = 10
+    BASE_VERTEX_SIZE = 8  # Temel vertex boyutu  
+    MIN_VERTEX_SIZE = 4   # Minimum vertex boyutu
+    MAX_VERTEX_SIZE = 12  # Maksimum vertex boyutu
     
     def __init__(self, polygon: QPolygonF, index: int, class_id: int, color: QColor, parent=None):
         super().__init__(polygon, parent)
@@ -61,16 +63,29 @@ class EditablePolygonItem(QGraphicsPolygonItem):
             pen = QPen(self.color, 3)
         else:
             pen = QPen(self.color, 2)
+        pen.setCosmetic(True)  # Zoom'dan bağımsız sabit çizgi kalınlığı
         self.setPen(pen)
         
         fill = QColor(self.color)
         fill.setAlphaF(0.15 if not selected else 0.25)
         self.setBrush(QBrush(fill))
     
+    def _get_dynamic_vertex_size(self, scale: float = 1.0) -> float:
+        """Zoom seviyesine göre dinamik vertex boyutu."""
+        if scale <= 0:
+            scale = 1.0
+        vs = self.BASE_VERTEX_SIZE / scale
+        return max(self.MIN_VERTEX_SIZE, min(vs, self.MAX_VERTEX_SIZE))
+    
     def _get_vertex_at(self, pos: QPointF) -> int:
         """Pozisyondaki vertex indeksini döndür (-1 = yok)."""
         polygon = self.polygon()
-        vs = self.VERTEX_SIZE
+        # View'dan scale al
+        scale = 1.0
+        if self.scene() and self.scene().views():
+            view = self.scene().views()[0]
+            scale = view.transform().m11()
+        vs = self._get_dynamic_vertex_size(scale)
         
         for i in range(polygon.count()):
             pt = polygon.at(i)
@@ -85,7 +100,9 @@ class EditablePolygonItem(QGraphicsPolygonItem):
         
         if self.isSelected():
             polygon = self.polygon()
-            vs = self.VERTEX_SIZE
+            # Zoom seviyesine göre dinamik vertex boyutu
+            scale = painter.transform().m11()
+            vs = self._get_dynamic_vertex_size(scale)
             
             for i in range(polygon.count()):
                 pt = polygon.at(i)
@@ -97,7 +114,9 @@ class EditablePolygonItem(QGraphicsPolygonItem):
                 else:
                     painter.setBrush(QBrush(Qt.GlobalColor.white))
                 
-                painter.setPen(QPen(self.color, 2))
+                vertex_pen = QPen(self.color, 2)
+                vertex_pen.setCosmetic(True)
+                painter.setPen(vertex_pen)
                 painter.drawEllipse(rect)
     
     def hoverMoveEvent(self, event):
