@@ -161,7 +161,7 @@ class ClassManagementDialog(QDialog):
                     break
     
     def _rename_class(self):
-        """Seçili sınıfı yeniden adlandır."""
+        """Seçili sınıfı yeniden adlandır veya başka bir sınıfla birleştir."""
         class_id = self._get_selected_class_id()
         if class_id < 0:
             QMessageBox.warning(self, "Uyarı", "Lütfen bir sınıf seçin.")
@@ -176,9 +176,107 @@ class ClassManagementDialog(QDialog):
             text=label_class.name
         )
         if ok and name.strip():
-            self._class_manager.update_class(class_id, name=name.strip())
-            self._refresh_table()
-            self.classes_changed.emit()
+            new_name = name.strip()
+            
+            # Aynı isimde başka bir sınıf var mı kontrol et
+            existing_class = self._class_manager.get_by_name(new_name)
+            
+            if existing_class and existing_class.id != class_id:
+                # Birleştirme seçeneği sun
+                result = QMessageBox.question(
+                    self, "Sınıf Birleştirme",
+                    f"'{new_name}' adında zaten bir sınıf mevcut.\n\n"
+                    f"'{label_class.name}' sınıfındaki tüm etiketleri "
+                    f"'{new_name}' sınıfına taşımak ve birleştirmek ister misiniz?\n\n"
+                    f"Bu işlem geri alınamaz!",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+                
+                if result == QMessageBox.StandardButton.Yes:
+                    self._merge_classes(class_id, existing_class.id)
+            else:
+                # Sadece ismi güncelle
+                self._class_manager.update_class(class_id, name=new_name)
+                self._refresh_table()
+                self.classes_changed.emit()
+    
+    def _merge_classes(self, source_id: int, target_id: int):
+        """İki sınıfı birleştir - kaynak sınıftaki tüm etiketleri hedef sınıfa taşı.
+        
+        Args:
+            source_id: Silinecek kaynak sınıf ID'si
+            target_id: Etiketlerin taşınacağı hedef sınıf ID'si
+        """
+        source_class = self._class_manager.get_by_id(source_id)
+        target_class = self._class_manager.get_by_id(target_id)
+        
+        if not source_class or not target_class:
+            return
+        
+        # Tüm etiketlerdeki source_id'yi target_id ile değiştir
+        updated_count = 0
+        updated_images = []
+        
+        if self._annotation_manager:
+            for image_path, annotations in self._annotation_manager._annotations.items():
+                image_updated = False
+                
+                for bbox in annotations.bboxes:
+                    if bbox.class_id == source_id:
+                        bbox.class_id = target_id
+                        updated_count += 1
+                        image_updated = True
+                        
+                for polygon in annotations.polygons:
+                    if polygon.class_id == source_id:
+                        polygon.class_id = target_id
+                        updated_count += 1
+                        image_updated = True
+                
+                # Bu görseli dirty olarak işaretle ve kaydet
+                if image_updated:
+                    self._annotation_manager._mark_dirty(image_path)
+                    updated_images.append(image_path)
+            
+            # Tüm değiştirilen görsellerin etiketlerini diske kaydet
+            from pathlib import Path
+            for image_path in updated_images:
+                image_p = Path(image_path)
+                parent = image_p.parent
+                
+                # Labels klasörünü belirle
+                if parent.name.lower() == "images":
+                    labels_dir = parent.parent / "labels"
+                else:
+                    labels_dir = parent / "labels"
+                
+                labels_dir.mkdir(parents=True, exist_ok=True)
+                self._annotation_manager.save_yolo(image_path, labels_dir)
+        
+        # Kaynak sınıfı sil
+        self._class_manager.remove_class(source_id)
+        
+        # classes.txt dosyasını da güncelle
+        if updated_images:
+            from pathlib import Path
+            first_image = Path(updated_images[0])
+            parent = first_image.parent
+            if parent.name.lower() == "images":
+                labels_dir = parent.parent / "labels"
+            else:
+                labels_dir = parent / "labels"
+            self._class_manager.save_to_file(labels_dir / "classes.txt")
+        
+        # Tabloyu yenile
+        self._refresh_table()
+        self.classes_changed.emit()
+        
+        QMessageBox.information(
+            self, "Birleştirme Tamamlandı",
+            f"'{source_class.name}' sınıfı '{target_class.name}' ile birleştirildi.\n\n"
+            f"{updated_count} etiket güncellendi ve kaydedildi."
+        )
     
     def _change_color(self):
         """Seçili sınıfın rengini değiştir."""

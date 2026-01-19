@@ -117,7 +117,8 @@ class LocalFlowApp(QMainWindow):
         QShortcut(QKeySequence("Q"), self, lambda: self.main_window.set_tool("select"))
         QShortcut(QKeySequence("W"), self, lambda: self.main_window.set_tool("bbox"))
         QShortcut(QKeySequence("E"), self, lambda: self.main_window.set_tool("polygon"))
-        QShortcut(QKeySequence("T"), self, self._toggle_sam)  # AI toggle
+        QShortcut(QKeySequence("T"), self, self._toggle_magic_pixel)  # Magic Pixel toggle
+        QShortcut(QKeySequence("Y"), self, self._toggle_magic_box)  # Magic Box toggle
         
         # Undo
         QShortcut(QKeySequence("Ctrl+Z"), self, self._undo)
@@ -246,8 +247,8 @@ class LocalFlowApp(QMainWindow):
         annotations = self.annotation_manager.get_annotations(image_path)
         self._pending_bbox_index = len(annotations.bboxes) - 1
         
-        # Popup'u bbox'ın sağ üst köşesinde göster
-        scene_pos = canvas.mapFromScene(x2, y1)
+        # Popup'u bbox'ın sağ üst köşesinde göster (biraz sağa ofset ile)
+        scene_pos = canvas.mapFromScene(x2 + 15, y1)  # 15px sağa ofset
         global_pos = canvas.mapToGlobal(scene_pos)
         
         # Eğer zaten bir popup açıksa, yeni popup açma
@@ -929,16 +930,139 @@ class LocalFlowApp(QMainWindow):
         count = self.project.load_folder(folder_path)
         
         if count > 0:
-            # classes.txt varsa yükle
-            classes_path = Path(folder_path) / "classes.txt"
-            if classes_path.exists():
-                self.class_manager.load_from_file(classes_path)
-                
+            folder = Path(folder_path)
+            
+            # Labels klasörünü belirle
+            if folder.name.lower() == "images":
+                labels_dir = folder.parent / "labels"
+                root_dir = folder.parent
+            else:
+                labels_dir = folder / "labels"
+                root_dir = folder
+            
+            classes_loaded = False
+            
+            # 1. Önce data.yaml'dan sınıfları yüklemeyi dene
+            if self._load_classes_from_yaml(root_dir):
+                classes_loaded = True
+            
+            # 2. Yoksa classes.txt'den yükle
+            if not classes_loaded:
+                classes_path = folder / "classes.txt"
+                if not classes_path.exists():
+                    classes_path = labels_dir / "classes.txt"
+                if classes_path.exists():
+                    self.class_manager.load_from_file(classes_path)
+                    classes_loaded = True
+            
+            # 3. Hiçbiri yoksa etiket dosyalarını tarayarak sınıfları keşfet
+            if not classes_loaded:
+                self._discover_classes_from_labels(labels_dir)
+            
             self.main_window.populate_file_list(self.project.image_files)
             self.main_window.file_list.setCurrentRow(0)
-            self.statusbar.showMessage(f"📁 {count} görsel yüklendi")
+            
+            class_count = self.class_manager.count
+            self.statusbar.showMessage(f"📁 {count} görsel, {class_count} sınıf yüklendi")
         else:
             self.statusbar.showMessage("Klasörde görsel bulunamadı!")
+    
+    def _load_classes_from_yaml(self, root_dir: Path) -> bool:
+        """data.yaml dosyasından sınıfları yükle.
+        
+        Returns:
+            True eğer başarılı yüklendiyse
+        """
+        import yaml
+        
+        yaml_paths = [
+            root_dir / "data.yaml",
+            root_dir / "data.yml",
+            root_dir.parent / "data.yaml",
+            root_dir.parent / "data.yml",
+        ]
+        
+        for yaml_path in yaml_paths:
+            if yaml_path.exists():
+                try:
+                    with open(yaml_path, "r", encoding="utf-8") as f:
+                        data = yaml.safe_load(f)
+                    
+                    names = data.get("names", {})
+                    if names:
+                        self.class_manager.clear()
+                        
+                        # names dict veya list olabilir
+                        if isinstance(names, dict):
+                            for class_id, name in names.items():
+                                self.class_manager.add_class_with_id(int(class_id), name)
+                        elif isinstance(names, list):
+                            for class_id, name in enumerate(names):
+                                self.class_manager.add_class_with_id(class_id, name)
+                        
+                        self.statusbar.showMessage(f"✓ data.yaml'dan {len(names)} sınıf yüklendi")
+                        return True
+                except Exception as e:
+                    print(f"data.yaml okuma hatası: {e}")
+        
+        return False
+    
+    def _discover_classes_from_labels(self, labels_dir: Path):
+        """Etiket dosyalarını tarayarak kullanılan sınıf ID'lerini keşfet.
+        
+        Bu fonksiyon sadece classes.txt ve data.yaml yoksa çağrılır.
+        """
+        if not labels_dir.exists():
+            return
+        
+        # Kullanıcıya bilgi ver
+        from PySide6.QtWidgets import QApplication
+        self.statusbar.showMessage("🔍 Etiket dosyaları taranıyor...")
+        QApplication.processEvents()  # UI'ı güncelle
+        
+        discovered_ids = set()
+        file_count = 0
+        
+        # Tüm .txt dosyalarını tara (sadece class ID'leri oku - optimize)
+        txt_files = list(labels_dir.glob("*.txt"))
+        total_files = len(txt_files)
+        
+        for txt_path in txt_files:
+            if txt_path.name == "classes.txt":
+                continue
+            
+            file_count += 1
+            
+            # Her 100 dosyada bir UI güncelle
+            if file_count % 100 == 0:
+                self.statusbar.showMessage(f"🔍 Taranıyor... {file_count}/{total_files}")
+                QApplication.processEvents()
+            
+            try:
+                with open(txt_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            # YOLO format: class_id x_center y_center width height ...
+                            parts = line.split()
+                            if parts:
+                                try:
+                                    class_id = int(parts[0])
+                                    discovered_ids.add(class_id)
+                                except ValueError:
+                                    continue
+            except Exception:
+                continue
+        
+        # Keşfedilen sınıfları oluştur (her birine farklı renk)
+        for class_id in sorted(discovered_ids):
+            if self.class_manager.get_by_id(class_id) is None:
+                self.class_manager.add_class_with_id(class_id, f"class_{class_id}")
+        
+        if discovered_ids:
+            self.statusbar.showMessage(
+                f"🔍 {len(discovered_ids)} sınıf keşfedildi (classes.txt/data.yaml bulunamadı)"
+            )
             
     def _load_files(self, image_files: list):
         self.project.image_files = sorted(image_files)
@@ -1112,14 +1236,29 @@ class LocalFlowApp(QMainWindow):
         self.main_window.set_sam_ready(False)
         self._sam_worker.request_load_models()
     
-    def _toggle_sam(self):
-        """SAM toggle kısayolu (T tuşu)."""
+    def _toggle_magic_pixel(self):
+        """Magic Pixel toggle kısayolu (T tuşu)."""
         if not self._sam_worker.is_model_loaded:
             self.statusbar.showMessage("⏳ SAM modeli yükleniyor, lütfen bekleyin...")
             return
         
-        current = self.main_window.sam_enabled
-        self.main_window.set_sam_enabled(not current)
+        # Magic Pixel aktifse kapat, değilse aç
+        if self.main_window.sam_mode == "pixel":
+            self.main_window.set_sam_mode(None)
+        else:
+            self.main_window.set_sam_mode("pixel")
+    
+    def _toggle_magic_box(self):
+        """Magic Box toggle kısayolu (Y tuşu)."""
+        if not self._sam_worker.is_model_loaded:
+            self.statusbar.showMessage("⏳ SAM modeli yükleniyor, lütfen bekleyin...")
+            return
+        
+        # Magic Box aktifse kapat, değilse aç
+        if self.main_window.sam_mode == "box":
+            self.main_window.set_sam_mode(None)
+        else:
+            self.main_window.set_sam_mode("box")
     
     def _on_sam_toggled(self, enabled: bool):
         """SAM toggle değiştiğinde."""

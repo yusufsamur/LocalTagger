@@ -636,6 +636,7 @@ class ExportWizard(QDialog):
         
         self._augmentor = Augmentor()
         self._preview_image = None
+        self._last_brightness_effect = None  # Son seçilen parlaklık efekti: 'brighten' veya 'darken'
         
         self.setWindowTitle("Dışa Aktar Wizard")
         self.setMinimumWidth(800)
@@ -744,6 +745,25 @@ class ExportWizard(QDialog):
         self.shuffle_group.setEnabled(True)  # Default olarak aktif
         layout.addWidget(self.shuffle_group)
         
+        # Etiketsiz dosyalar seçeneği
+        self.unlabeled_group = QGroupBox("Etiketsiz Dosyalar")
+        unlabeled_layout = QVBoxLayout(self.unlabeled_group)
+        
+        self.include_unlabeled = QCheckBox("Etiketsiz görselleri dahil et")
+        self.include_unlabeled.setChecked(False)  # Default olarak dahil değil
+        self.include_unlabeled.setToolTip("Devre dışı bırakırsan, sadece etiketli dosyalar export edilir")
+        self.include_unlabeled.toggled.connect(self._on_unlabeled_toggled)  # Tüm bölümleri güncelle
+        unlabeled_layout.addWidget(self.include_unlabeled)
+        
+        # Etiketsiz dosya sayısını göster
+        unlabeled_count = self._count_unlabeled_files()
+        labeled_count = len(self._image_files) - unlabeled_count
+        self.unlabeled_info = QLabel(f"📊 {labeled_count} etiketli, {unlabeled_count} etiketsiz dosya")
+        self.unlabeled_info.setStyleSheet("color: #666; font-size: 11px; margin-left: 20px;")
+        unlabeled_layout.addWidget(self.unlabeled_info)
+        
+        layout.addWidget(self.unlabeled_group)
+        
         # Görsel sayısı özeti
         self.split_summary = QLabel()
         self.split_summary.setStyleSheet("color: #888; padding: 10px; font-size: 12px;")
@@ -818,8 +838,32 @@ class ExportWizard(QDialog):
         aug_group = QGroupBox("Augmentation Parametreleri")
         aug_layout = QVBoxLayout(aug_group)
         
-        self.brightness_slider = AugmentationSlider("Parlaklık", -50, 50, 20, "%")
-        aug_layout.addWidget(self.brightness_slider)
+        # Parlaklık - Roboflow tarzı Brighten/Darken checkboxları
+        brightness_group = QGroupBox("Parlaklık")
+        brightness_layout = QVBoxLayout(brightness_group)
+        
+        # Sürgü (0-99%)
+        slider_layout = QHBoxLayout()
+        slider_layout.addWidget(QLabel("Değer:"))
+        self.brightness_slider_value = QSlider(Qt.Orientation.Horizontal)
+        self.brightness_slider_value.setRange(0, 99)
+        self.brightness_slider_value.setValue(20)
+        slider_layout.addWidget(self.brightness_slider_value, 1)
+        self.brightness_value_label = QLabel("20%")
+        self.brightness_value_label.setMinimumWidth(40)
+        slider_layout.addWidget(self.brightness_value_label)
+        brightness_layout.addLayout(slider_layout)
+        
+        # Checkbox'lar
+        checkbox_layout = QHBoxLayout()
+        self.brighten_checkbox = QCheckBox("Parlaklık (Brighten)")
+        self.darken_checkbox = QCheckBox("Karanlık (Darken)")
+        checkbox_layout.addWidget(self.brighten_checkbox)
+        checkbox_layout.addWidget(self.darken_checkbox)
+        checkbox_layout.addStretch()
+        brightness_layout.addLayout(checkbox_layout)
+        
+        aug_layout.addWidget(brightness_group)
         
         self.contrast_slider = AugmentationSlider("Kontrast", 50, 150, 120, "%")
         aug_layout.addWidget(self.contrast_slider)
@@ -1040,7 +1084,11 @@ class ExportWizard(QDialog):
         self.aug_enabled.toggled.connect(self._on_aug_toggled)
         
         # Her slider için ayrı tracking
-        self.brightness_slider.valueChanged.connect(lambda: self._on_slider_changed('brightness'))
+        # Parlaklık - yeni UI
+        self.brightness_slider_value.valueChanged.connect(self._on_brightness_value_changed)
+        self.brighten_checkbox.toggled.connect(lambda: self._on_brightness_checkbox_changed('brighten'))
+        self.darken_checkbox.toggled.connect(lambda: self._on_brightness_checkbox_changed('darken'))
+        
         self.contrast_slider.valueChanged.connect(lambda: self._on_slider_changed('contrast'))
         self.rotation_slider.valueChanged.connect(lambda: self._on_slider_changed('rotation'))
         self.blur_slider.valueChanged.connect(lambda: self._on_slider_changed('blur'))
@@ -1115,21 +1163,34 @@ class ExportWizard(QDialog):
         self._update_split_summary()
     
     def _update_split_summary(self):
+        # Filtrelenmiş dosya sayısını kullan
+        filtered_files = self._get_filtered_image_files()
+        total = len(filtered_files)
+        
         if not self.split_enabled.isChecked():
-            self.split_summary.setText("Split devre dışı - tüm veriler tek klasöre yazılacak")
+            self.split_summary.setText(f"Split devre dışı - {total} görsel tek klasöre yazılacak")
             return
         
         train_pct, val_pct, test_pct = self.range_slider.values()
-        total = len(self._image_files)
         train = int(total * train_pct / 100)
         val = int(total * val_pct / 100)
         test = total - train - val
         
         self.split_summary.setText(f"📂 Train: {train} görsel | Val: {val} görsel | Test: {test} görsel")
     
+    def _on_unlabeled_toggled(self, checked: bool):
+        """Etiketsiz checkbox değiştiğinde tüm bölümleri güncelle."""
+        self._update_split_summary()
+        self._update_multiplier_options()
+        # Export sayfasındaysa summary'yi de güncelle
+        if self.stack.currentIndex() == 2:
+            self._update_export_summary()
+    
     def _update_multiplier_options(self):
         """Çarpan seçeneklerini görsel sayısıyla güncelle."""
-        count = len(self._image_files)
+        # Filtrelenmiş dosya sayısını kullan
+        filtered = self._get_filtered_image_files()
+        count = len(filtered)
         self.aug_multiplier.clear()
         for mult in [2, 3, 5, 8, 10, 15]:
             # Roboflow tarzı: 1 orijinal + (mult-1) augmented = toplam mult görsel
@@ -1146,6 +1207,24 @@ class ExportWizard(QDialog):
             self._update_preview()
         else:
             self.preview_label.setText("Augmentation'ı aktifleştirin")
+    
+    def _on_brightness_value_changed(self, value):
+        """Parlaklık slider değeri değiştiğinde."""
+        self.brightness_value_label.setText(f"{value}%")
+        self._schedule_preview()
+    
+    def _on_brightness_checkbox_changed(self, checkbox_type: str):
+        """Brighten veya Darken checkbox değiştiğinde."""
+        # Son seçilen efekti takip et (canlı önizleme için)
+        if checkbox_type == 'brighten' and self.brighten_checkbox.isChecked():
+            self._last_brightness_effect = 'brighten'
+        elif checkbox_type == 'darken' and self.darken_checkbox.isChecked():
+            self._last_brightness_effect = 'darken'
+        elif not self.brighten_checkbox.isChecked() and not self.darken_checkbox.isChecked():
+            self._last_brightness_effect = None
+        
+        self._last_changed_slider = 'brightness'
+        self._schedule_preview()
     
     def _schedule_preview(self):
         self._preview_timer.start(100)
@@ -1217,7 +1296,9 @@ class ExportWizard(QDialog):
             self.output_path.setText(folder)
     
     def _update_export_summary(self):
-        total = len(self._image_files)
+        # Filtrelenmiş dosya sayısını kullan
+        filtered = self._get_filtered_image_files()
+        total = len(filtered)
         
         if self.aug_enabled.isChecked():
             mult_text = self.aug_multiplier.currentText().split('x')[0]
@@ -1253,8 +1334,10 @@ class ExportWizard(QDialog):
         return AugmentationConfig(
             enabled=self.aug_enabled.isChecked(),
             multiplier=multiplier,
-            brightness_enabled=self.brightness_slider.is_enabled(),
-            brightness_value=self.brightness_slider.value() / 100,
+            # Yeni parlaklık sistemi - Brighten ve Darken ayrı
+            brighten_enabled=self.brighten_checkbox.isChecked(),
+            darken_enabled=self.darken_checkbox.isChecked(),
+            brightness_value=self.brightness_slider_value.value() / 100,
             contrast_enabled=self.contrast_slider.is_enabled(),
             contrast_value=self.contrast_slider.value() / 100,
             rotation_enabled=self.rotation_slider.is_enabled(),
@@ -1304,8 +1387,10 @@ class ExportWizard(QDialog):
         return AugmentationConfig(
             enabled=True,
             multiplier=1,
-            brightness_enabled=(slider_name == 'brightness' or show_all) and self.brightness_slider.is_enabled(),
-            brightness_value=self.brightness_slider.value() / 100,
+            # Parlaklık - canlı önizleme için son seçilen efekti göster
+            brighten_enabled=(slider_name == 'brightness' or show_all) and self.brighten_checkbox.isChecked() and getattr(self, '_last_brightness_effect', None) == 'brighten',
+            darken_enabled=(slider_name == 'brightness' or show_all) and self.darken_checkbox.isChecked() and getattr(self, '_last_brightness_effect', None) == 'darken',
+            brightness_value=self.brightness_slider_value.value() / 100,
             contrast_enabled=(slider_name == 'contrast' or show_all) and self.contrast_slider.is_enabled(),
             contrast_value=self.contrast_slider.value() / 100,
             rotation_enabled=(slider_name == 'rotation' or show_all) and self.rotation_slider.is_enabled(),
@@ -1380,8 +1465,11 @@ class ExportWizard(QDialog):
         if exporter is None:
             return
         
+        # Etiketsiz dosya filtreleme
+        image_files = self._get_filtered_image_files()
+        
         annotations_dict = {}
-        for image_path in self._image_files:
+        for image_path in image_files:
             key = str(image_path)
             if key in self._annotation_manager._annotations:
                 annotations_dict[key] = self._annotation_manager._annotations[key]
@@ -1404,7 +1492,7 @@ class ExportWizard(QDialog):
             export_format = "yolo"
         
         self._worker = ExportWorkerV2(
-            exporter, annotations_dict, Path(output), self._image_files,
+            exporter, annotations_dict, Path(output), image_files,
             self._get_augmentation_config(), self._get_split_config(), export_format
         )
         self._worker.progress.connect(self._on_progress)
@@ -1432,3 +1520,53 @@ class ExportWizard(QDialog):
         if self._worker and self._worker.isRunning():
             self._worker.wait()
         super().closeEvent(event)
+    
+    def _count_unlabeled_files(self) -> int:
+        """Etiketsiz dosya sayısını hesapla."""
+        unlabeled = 0
+        
+        if not self._image_files:
+            return 0
+        
+        # Labels klasörünü bul
+        first_path = Path(self._image_files[0])
+        parent = first_path.parent
+        
+        if parent.name.lower() == "images":
+            labels_dir = parent.parent / "labels"
+        else:
+            labels_dir = parent / "labels"
+        
+        for path in self._image_files:
+            p = Path(path)
+            txt_file = labels_dir / f"{p.stem}.txt"
+            if not txt_file.exists() or txt_file.stat().st_size == 0:
+                unlabeled += 1
+        
+        return unlabeled
+    
+    def _get_filtered_image_files(self) -> list:
+        """include_unlabeled seçeneğine göre filtrelenmiş dosya listesi döndür."""
+        if self.include_unlabeled.isChecked():
+            return self._image_files
+        
+        # Sadece etiketli dosyaları döndür
+        if not self._image_files:
+            return []
+        
+        first_path = Path(self._image_files[0])
+        parent = first_path.parent
+        
+        if parent.name.lower() == "images":
+            labels_dir = parent.parent / "labels"
+        else:
+            labels_dir = parent / "labels"
+        
+        labeled_files = []
+        for path in self._image_files:
+            p = Path(path)
+            txt_file = labels_dir / f"{p.stem}.txt"
+            if txt_file.exists() and txt_file.stat().st_size > 0:
+                labeled_files.append(path)
+        
+        return labeled_files

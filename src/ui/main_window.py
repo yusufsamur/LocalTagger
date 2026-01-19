@@ -129,7 +129,7 @@ class MainWindow(QWidget):
         # Magic Pixel Butonu
         self.magic_pixel_btn = QPushButton("✨ Magic Pixel")
         self.magic_pixel_btn.setCheckable(True)
-        self.magic_pixel_btn.setToolTip("Tek tıkla AI segmentasyon - Nokta tabanlı (T)")
+        self.magic_pixel_btn.setToolTip("Tek tıkla etiketle - Nokta tabanlı (T)")
         self.magic_pixel_btn.setStyleSheet("""
             QPushButton {
                 padding: 6px 12px;
@@ -154,7 +154,7 @@ class MainWindow(QWidget):
         # Magic Box Butonu
         self.magic_box_btn = QPushButton("📦 Magic Box")
         self.magic_box_btn.setCheckable(True)
-        self.magic_box_btn.setToolTip("BBox çizerek AI segmentasyon - Kutu tabanlı (Y)")
+        self.magic_box_btn.setToolTip("Bbox çiz, AI düzeltsin - Bbox tabanlı (Y)")
         self.magic_box_btn.setStyleSheet("""
             QPushButton {
                 padding: 6px 12px;
@@ -206,13 +206,19 @@ class MainWindow(QWidget):
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
         
-        title = QLabel("📁 Dosyalar")
-        title.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(title)
+        self.files_title = QLabel("📁 Dosyalar (0)")
+        self.files_title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        layout.addWidget(self.files_title)
         
         self.file_list = QListWidget()
         self.file_list.setAlternatingRowColors(True)
+        self.file_list.setStyleSheet("font-size: 11px;")  # Küçük font
         layout.addWidget(self.file_list)
+        
+        # Etiketli/Etiketsiz sayısı
+        self.labeled_count_label = QLabel("✅ 0 etiketli  ⭕ 0 etiketsiz")
+        self.labeled_count_label.setStyleSheet("color: #888; font-size: 10px;")
+        layout.addWidget(self.labeled_count_label)
         
         self.file_info_label = QLabel("Klasör açılmadı")
         self.file_info_label.setStyleSheet("color: gray; font-size: 11px;")
@@ -306,6 +312,12 @@ class MainWindow(QWidget):
         if labels_dir:
             labels_dir.mkdir(parents=True, exist_ok=True)
             self._annotation_manager.save_yolo(self._current_image_path, labels_dir)
+            
+            # classes.txt'i de kaydet (yeni sınıfların kaybolmaması için)
+            self._class_manager.save_to_file(labels_dir / "classes.txt")
+            
+            # Etiketli/etiketsiz sayısını güncelle
+            self.refresh_labeled_count()
     
     def _load_annotations_from_labels(self, image_path: str, w: int, h: int):
         """Labels klasöründen etiketleri yükle."""
@@ -386,8 +398,13 @@ class MainWindow(QWidget):
             item = QListWidgetItem(path.name)
             item.setData(Qt.ItemDataRole.UserRole, str(path))
             self.file_list.addItem(item)
-            
+        
+        # Başlığı güncelle
+        self.files_title.setText(f"📁 Dosyalar ({len(file_paths)})")
         self.file_info_label.setText(f"{len(file_paths)} görsel")
+        
+        # Etiketli/etiketsiz sayısını güncelle
+        self._update_labeled_count(file_paths)
         
     def get_current_image_path(self) -> str:
         return self._current_image_path
@@ -458,4 +475,47 @@ class MainWindow(QWidget):
     def sam_mode(self) -> str:
         """Aktif SAM modu - 'pixel', 'box', veya None."""
         return self._sam_mode
+    
+    def _update_labeled_count(self, file_paths: list):
+        """Etiketli ve etiketsiz dosya sayısını güncelle."""
+        from pathlib import Path
+        
+        if not file_paths:
+            self.labeled_count_label.setText("✅ 0 etiketli  ⭕ 0 etiketsiz")
+            return
+        
+        labeled = 0
+        unlabeled = 0
+        
+        # Labels klasörünü bul
+        first_path = Path(file_paths[0])
+        parent = first_path.parent
+        
+        if parent.name.lower() == "images":
+            labels_dir = parent.parent / "labels"
+        else:
+            labels_dir = parent / "labels"
+        
+        for path in file_paths:
+            p = Path(path)
+            txt_file = labels_dir / f"{p.stem}.txt"
+            if txt_file.exists() and txt_file.stat().st_size > 0:
+                labeled += 1
+            else:
+                unlabeled += 1
+        
+        self.labeled_count_label.setText(f"✅ {labeled} etiketli  ⭕ {unlabeled} etiketsiz")
+    
+    def refresh_labeled_count(self):
+        """Etiketli/etiketsiz sayısını yenile - mevcut dosya listesinden."""
+        from pathlib import Path
+        file_paths = []
+        for i in range(self.file_list.count()):
+            item = self.file_list.item(i)
+            path_str = item.data(Qt.ItemDataRole.UserRole)
+            if path_str:
+                file_paths.append(Path(path_str))
+        
+        if file_paths:
+            self._update_labeled_count(file_paths)
 

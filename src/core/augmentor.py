@@ -39,9 +39,12 @@ class AugmentationConfig:
     enabled: bool = False
     multiplier: int = 3  # Toplam görsel sayısı (1 orijinal + N-1 augmented)
     
-    # Parlaklık/Kontrast (sürgülü - parametre rastgele)
-    brightness_enabled: bool = True
-    brightness_value: float = 0.2  # -value ile +value arası rastgele
+    # Parlaklık - Roboflow tarzı ayrı Brighten/Darken
+    brighten_enabled: bool = False  # Parlaklık artırma
+    darken_enabled: bool = False    # Karanlık (parlaklık azaltma)
+    brightness_value: float = 0.2   # 0 ile 1 arası (% değer)
+    
+    # Kontrast
     contrast_enabled: bool = True
     contrast_value: float = 1.2  # 0.5 ile value arası rastgele
     
@@ -181,12 +184,31 @@ class Augmentor:
         
         is_preview = config.preview_mode
         
-        # Parlaklık
-        if config.brightness_enabled:
+        # Parlaklık - Roboflow tarzı Brighten/Darken
+        if config.brighten_enabled or config.darken_enabled:
             if is_preview:
-                brightness = config.brightness_value
+                # Önizlemede - son seçilen efekti göster
+                # Varsayılan olarak brighten_enabled ise pozitif, darken_enabled ise negatif
+                if config.brighten_enabled and not config.darken_enabled:
+                    brightness = config.brightness_value
+                elif config.darken_enabled and not config.brighten_enabled:
+                    brightness = -config.brightness_value
+                else:
+                    # İkisi de seçiliyse, rastgele birini seç
+                    brightness = config.brightness_value  # Önizlemede parlaklık göster
             else:
-                brightness = random.uniform(-abs(config.brightness_value), abs(config.brightness_value))
+                # Export'ta - aktif ayara göre rastgele değer
+                if config.brighten_enabled and config.darken_enabled:
+                    # İkisi de seçiliyse, rastgele birini seç ve rastgele değer uygula
+                    if random.random() > 0.5:
+                        brightness = random.uniform(0, config.brightness_value)  # Parlaklık
+                    else:
+                        brightness = random.uniform(-config.brightness_value, 0)  # Karanlık
+                elif config.brighten_enabled:
+                    brightness = random.uniform(0, config.brightness_value)
+                else:  # darken_enabled
+                    brightness = random.uniform(-config.brightness_value, 0)
+            
             result = self._adjust_brightness(result, brightness)
             transform["brightness"] = brightness
         
@@ -326,7 +348,8 @@ class Augmentor:
         export_config = AugmentationConfig(
             enabled=config.enabled,
             multiplier=config.multiplier,
-            brightness_enabled=config.brightness_enabled,
+            brighten_enabled=config.brighten_enabled,
+            darken_enabled=config.darken_enabled,
             brightness_value=config.brightness_value,
             contrast_enabled=config.contrast_enabled,
             contrast_value=config.contrast_value,
@@ -381,7 +404,8 @@ class Augmentor:
         preview_config = AugmentationConfig(
             enabled=config.enabled,
             multiplier=config.multiplier,
-            brightness_enabled=config.brightness_enabled,
+            brighten_enabled=config.brighten_enabled,
+            darken_enabled=config.darken_enabled,
             brightness_value=config.brightness_value,
             contrast_enabled=config.contrast_enabled,
             contrast_value=config.contrast_value,
