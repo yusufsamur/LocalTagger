@@ -81,7 +81,7 @@ class ClassSelectorPopup(QFrame):
         layout.setSpacing(2)
         
         # Başlık
-        title = QLabel("Sınıf Seç (1-9 veya Enter)")
+        title = QLabel(self.tr("Select Class (1-9 or Enter)"))
         layout.addWidget(title)
         
         # Sınıf butonları
@@ -104,7 +104,7 @@ class ClassSelectorPopup(QFrame):
             self._buttons.append(btn)
         
         # İptal bilgisi
-        cancel_label = QLabel("ESC: İptal")
+        cancel_label = QLabel(self.tr("ESC: Cancel"))
         layout.addWidget(cancel_label)
         
     def _create_color_icon(self, color_hex: str, size: int = 16) -> QIcon:

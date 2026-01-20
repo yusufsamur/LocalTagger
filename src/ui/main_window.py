@@ -95,28 +95,30 @@ class MainWindow(QWidget):
             }
         """)
         
-        # Araç butonları
-        self.select_btn = QPushButton("🔲 Seç (Q)")
+        # Tool buttons
+        self.select_btn = QPushButton(self.tr("🔲 Select (Q)"))
         self.select_btn.setCheckable(True)
         self.select_btn.clicked.connect(lambda: self._on_tool_clicked("select"))
-        self.select_btn.setToolTip("BBox seçme ve düzenleme modu")
+        self.select_btn.setToolTip(self.tr("BBox selection and editing mode"))
         toolbar.addWidget(self.select_btn)
         
-        self.bbox_btn = QPushButton("⬜ BBox (W)")
+        self.bbox_btn = QPushButton(self.tr("⬜ BBox (W)"))
         self.bbox_btn.setCheckable(True)
         self.bbox_btn.setChecked(True)
         self.bbox_btn.clicked.connect(lambda: self._on_tool_clicked("bbox"))
+        self.bbox_btn.setToolTip(self.tr("BBox drawing mode"))
         toolbar.addWidget(self.bbox_btn)
         
-        self.polygon_btn = QPushButton("◇ Polygon (E)")
+        self.polygon_btn = QPushButton(self.tr("◇ Polygon (E)"))
         self.polygon_btn.setCheckable(True)
         self.polygon_btn.clicked.connect(lambda: self._on_tool_clicked("polygon"))
+        self.polygon_btn.setToolTip(self.tr("Polygon drawing mode"))
         toolbar.addWidget(self.polygon_btn)
         
         toolbar.addSeparator()
         
-        # Bilgi etiketi
-        self.toolbar_info = QLabel("  Araç: BBox")
+        # Info label
+        self.toolbar_info = QLabel(self.tr("  Tool: BBox"))
         self.toolbar_info.setStyleSheet("color: #888;")
         toolbar.addWidget(self.toolbar_info)
         
@@ -127,9 +129,9 @@ class MainWindow(QWidget):
         toolbar.addWidget(spacer)
         
         # Magic Pixel Butonu
-        self.magic_pixel_btn = QPushButton("✨ Magic Pixel")
+        self.magic_pixel_btn = QPushButton(self.tr("✨ Magic Pixel"))
         self.magic_pixel_btn.setCheckable(True)
-        self.magic_pixel_btn.setToolTip("Tek tıkla etiketle - Nokta tabanlı (T)")
+        self.magic_pixel_btn.setToolTip(self.tr("Click to label - Point-based (T)"))
         self.magic_pixel_btn.setStyleSheet("""
             QPushButton {
                 padding: 6px 12px;
@@ -152,9 +154,9 @@ class MainWindow(QWidget):
         toolbar.addWidget(self.magic_pixel_btn)
         
         # Magic Box Butonu
-        self.magic_box_btn = QPushButton("📦 Magic Box")
+        self.magic_box_btn = QPushButton(self.tr("📦 Magic Box"))
         self.magic_box_btn.setCheckable(True)
-        self.magic_box_btn.setToolTip("Bbox çiz, AI düzeltsin - Bbox tabanlı (Y)")
+        self.magic_box_btn.setToolTip(self.tr("Draw bbox, AI refines - Box-based (Y)"))
         self.magic_box_btn.setStyleSheet("""
             QPushButton {
                 padding: 6px 12px;
@@ -193,8 +195,8 @@ class MainWindow(QWidget):
         self.canvas_view.set_tool(tool)
         self.tool_changed.emit(tool)
         
-        tool_names = {"select": "Seç", "bbox": "BBox", "polygon": "Polygon"}
-        self.toolbar_info.setText(f"  Araç: {tool_names.get(tool, tool)}")
+        tool_names = {"select": self.tr("Select"), "bbox": "BBox", "polygon": "Polygon"}
+        self.toolbar_info.setText(self.tr("  Tool: {}").format(tool_names.get(tool, tool)))
         
     def _create_left_panel(self) -> QFrame:
         """Sol panel (dosya listesi) oluştur."""
@@ -206,7 +208,7 @@ class MainWindow(QWidget):
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
         
-        self.files_title = QLabel("📁 Dosyalar (0)")
+        self.files_title = QLabel(self.tr("📁 Files (0)"))
         self.files_title.setStyleSheet("font-weight: bold; font-size: 14px;")
         layout.addWidget(self.files_title)
         
@@ -215,12 +217,12 @@ class MainWindow(QWidget):
         self.file_list.setStyleSheet("font-size: 11px;")  # Küçük font
         layout.addWidget(self.file_list)
         
-        # Etiketli/Etiketsiz sayısı
-        self.labeled_count_label = QLabel("✅ 0 etiketli  ⭕ 0 etiketsiz")
+        # Labeled/Unlabeled count
+        self.labeled_count_label = QLabel(self.tr("✅ 0 labeled  ⭕ 0 unlabeled"))
         self.labeled_count_label.setStyleSheet("color: #888; font-size: 10px;")
         layout.addWidget(self.labeled_count_label)
         
-        self.file_info_label = QLabel("Klasör açılmadı")
+        self.file_info_label = QLabel(self.tr("No folder opened"))
         self.file_info_label.setStyleSheet("color: gray; font-size: 11px;")
         layout.addWidget(self.file_info_label)
         
@@ -399,9 +401,9 @@ class MainWindow(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, str(path))
             self.file_list.addItem(item)
         
-        # Başlığı güncelle
-        self.files_title.setText(f"📁 Dosyalar ({len(file_paths)})")
-        self.file_info_label.setText(f"{len(file_paths)} görsel")
+        # Update title
+        self.files_title.setText(self.tr("📁 Files ({})").format(len(file_paths)))
+        self.file_info_label.setText(self.tr("{} images").format(len(file_paths)))
         
         # Etiketli/etiketsiz sayısını güncelle
         self._update_labeled_count(file_paths)
@@ -462,7 +464,7 @@ class MainWindow(QWidget):
         self.magic_pixel_btn.setEnabled(ready)
         self.magic_box_btn.setEnabled(ready)
         if not ready:
-            self.sam_status.setText("Model yükleniyor...")
+            self.sam_status.setText(self.tr("Model loading..."))
         else:
             self.sam_status.setText("")
     
@@ -481,7 +483,7 @@ class MainWindow(QWidget):
         from pathlib import Path
         
         if not file_paths:
-            self.labeled_count_label.setText("✅ 0 etiketli  ⭕ 0 etiketsiz")
+            self.labeled_count_label.setText(self.tr("✅ 0 labeled  ⭕ 0 unlabeled"))
             return
         
         labeled = 0
@@ -504,7 +506,7 @@ class MainWindow(QWidget):
             else:
                 unlabeled += 1
         
-        self.labeled_count_label.setText(f"✅ {labeled} etiketli  ⭕ {unlabeled} etiketsiz")
+        self.labeled_count_label.setText(self.tr("✅ {} labeled  ⭕ {} unlabeled").format(labeled, unlabeled))
     
     def refresh_labeled_count(self):
         """Etiketli/etiketsiz sayısını yenile - mevcut dosya listesinden."""

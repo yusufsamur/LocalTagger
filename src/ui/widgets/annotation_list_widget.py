@@ -42,17 +42,17 @@ class AnnotationListWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
         
-        # Başlık
+        # Title
         header = QHBoxLayout()
-        title = QLabel("📊 Etiket Özeti")
+        title = QLabel(self.tr("📊 Annotation Summary"))
         title.setStyleSheet("font-weight: bold; font-size: 13px;")
         header.addWidget(title)
         header.addStretch()
         
-        # Temizle butonu
+        # Clear button
         self.clear_btn = QPushButton("🗑")
         self.clear_btn.setFixedSize(24, 24)
-        self.clear_btn.setToolTip("Tüm etiketleri sil")
+        self.clear_btn.setToolTip(self.tr("Delete all annotations"))
         header.addWidget(self.clear_btn)
         
         layout.addLayout(header)
@@ -69,8 +69,8 @@ class AnnotationListWidget(QWidget):
         """)
         layout.addWidget(self.list_widget)
         
-        # Bilgi
-        self.info_label = QLabel("Görsel seçilmedi")
+        # Info
+        self.info_label = QLabel(self.tr("No image selected"))
         self.info_label.setStyleSheet("color: gray; font-size: 11px;")
         layout.addWidget(self.info_label)
         
@@ -87,7 +87,7 @@ class AnnotationListWidget(QWidget):
         self.list_widget.clear()
         
         if not self._current_image:
-            self.info_label.setText("Görsel seçilmedi")
+            self.info_label.setText(self.tr("No image selected"))
             return
             
         annotations = self._annotation_manager.get_annotations(self._current_image)
@@ -122,7 +122,7 @@ class AnnotationListWidget(QWidget):
         # Bilgi güncelle
         total = len(annotations.bboxes) + len(annotations.polygons)
         if total == 0:
-            self.info_label.setText("Etiket yok - Çizim yapın")
+            self.info_label.setText(self.tr("No annotations - Start drawing"))
         else:
             bbox_count = len(annotations.bboxes)
             poly_count = len(annotations.polygons)
@@ -131,7 +131,7 @@ class AnnotationListWidget(QWidget):
                 parts.append(f"{bbox_count} bbox")
             if poly_count > 0:
                 parts.append(f"{poly_count} polygon")
-            self.info_label.setText(f"Toplam: {total} ({', '.join(parts)})")
+            self.info_label.setText(self.tr("Total: {} ({})").format(total, ', '.join(parts)))
             
     def _create_color_icon(self, color_hex: str) -> QIcon:
         """Renk ikonu oluştur."""

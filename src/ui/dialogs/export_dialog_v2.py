@@ -786,7 +786,7 @@ class ExportWizard(QDialog):
         self._preview_image = None
         self._last_brightness_effect = None  # Son seçilen parlaklık efekti: 'brighten' veya 'darken'
         
-        self.setWindowTitle("Dışa Aktar Wizard")
+        self.setWindowTitle(self.tr("Export Wizard"))
         self.setMinimumWidth(800)
         self.setMinimumHeight(620)
         
@@ -799,9 +799,9 @@ class ExportWizard(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         
-        # Başlık
+        # Header
         header = QHBoxLayout()
-        self.step_label = QLabel("Adım 1/3: Dataset Split")
+        self.step_label = QLabel(self.tr("Step 1/3: Dataset Split"))
         self.step_label.setFont(QFont("", 14, QFont.Weight.Bold))
         header.addWidget(self.step_label)
         header.addStretch()
@@ -827,17 +827,17 @@ class ExportWizard(QDialog):
         # Navigation
         nav_layout = QHBoxLayout()
         
-        self.back_btn = QPushButton("← Geri")
+        self.back_btn = QPushButton(self.tr("← Back"))
         self.back_btn.setStyleSheet("padding: 10px 25px;")
         nav_layout.addWidget(self.back_btn)
         
         nav_layout.addStretch()
         
-        self.cancel_btn = QPushButton("İptal")
+        self.cancel_btn = QPushButton(self.tr("Cancel"))
         self.cancel_btn.setStyleSheet("padding: 10px 20px;")
         nav_layout.addWidget(self.cancel_btn)
         
-        self.next_btn = QPushButton("İleri →")
+        self.next_btn = QPushButton(self.tr("Next →"))
         self.next_btn.setStyleSheet("padding: 10px 25px; background-color: #0d6efd; color: white;")
         nav_layout.addWidget(self.next_btn)
         
@@ -848,17 +848,17 @@ class ExportWizard(QDialog):
         page = QWidget()
         layout = QVBoxLayout(page)
         
-        info = QLabel(f"📊 Toplam {len(self._image_files)} görsel")
+        info = QLabel(self.tr("📊 Total {} images").format(len(self._image_files)))
         info.setStyleSheet("font-size: 14px; color: #2196F3; padding: 10px;")
         layout.addWidget(info)
         
-        self.split_enabled = QCheckBox("Dataset Split'i Etkinleştir")
-        self.split_enabled.setChecked(True)  # Default olarak aktif
+        self.split_enabled = QCheckBox(self.tr("Enable Dataset Split"))
+        self.split_enabled.setChecked(True)
         self.split_enabled.setStyleSheet("font-size: 13px; padding: 5px;")
         layout.addWidget(self.split_enabled)
         
         # Range slider
-        self.split_group = QGroupBox("Bölme Oranları (sürükleyerek ayarlayın)")
+        self.split_group = QGroupBox(self.tr("Split Ratios (drag to adjust)"))
         split_layout = QVBoxLayout(self.split_group)
         
         self.range_slider = RangeSlider()
@@ -874,10 +874,10 @@ class ExportWizard(QDialog):
         layout.addWidget(self.split_group)
         
         # Shuffle & Seed
-        self.shuffle_group = QGroupBox("Karıştırma Ayarları")
+        self.shuffle_group = QGroupBox(self.tr("Shuffle Settings"))
         shuffle_layout = QVBoxLayout(self.shuffle_group)
         
-        self.shuffle_check = QCheckBox("Verileri Karıştır (Shuffle)")
+        self.shuffle_check = QCheckBox(self.tr("Shuffle Data"))
         self.shuffle_check.setChecked(True)
         shuffle_layout.addWidget(self.shuffle_check)
         
@@ -893,20 +893,20 @@ class ExportWizard(QDialog):
         self.shuffle_group.setEnabled(True)  # Default olarak aktif
         layout.addWidget(self.shuffle_group)
         
-        # Etiketsiz dosyalar seçeneği
-        self.unlabeled_group = QGroupBox("Etiketsiz Dosyalar")
+        # Unlabeled files option
+        self.unlabeled_group = QGroupBox(self.tr("Unlabeled Files"))
         unlabeled_layout = QVBoxLayout(self.unlabeled_group)
         
-        self.include_unlabeled = QCheckBox("Etiketsiz görselleri dahil et")
-        self.include_unlabeled.setChecked(False)  # Default olarak dahil değil
-        self.include_unlabeled.setToolTip("Devre dışı bırakırsan, sadece etiketli dosyalar export edilir")
-        self.include_unlabeled.toggled.connect(self._on_unlabeled_toggled)  # Tüm bölümleri güncelle
+        self.include_unlabeled = QCheckBox(self.tr("Include unlabeled images"))
+        self.include_unlabeled.setChecked(False)
+        self.include_unlabeled.setToolTip(self.tr("If disabled, only labeled files will be exported"))
+        self.include_unlabeled.toggled.connect(self._on_unlabeled_toggled)
         unlabeled_layout.addWidget(self.include_unlabeled)
         
-        # Etiketsiz dosya sayısını göster
+        # Show unlabeled file count
         unlabeled_count = self._count_unlabeled_files()
         labeled_count = len(self._image_files) - unlabeled_count
-        self.unlabeled_info = QLabel(f"📊 {labeled_count} etiketli, {unlabeled_count} etiketsiz dosya")
+        self.unlabeled_info = QLabel(self.tr("📊 {} labeled, {} unlabeled files").format(labeled_count, unlabeled_count))
         self.unlabeled_info.setStyleSheet("color: #666; font-size: 11px; margin-left: 20px;")
         unlabeled_layout.addWidget(self.unlabeled_info)
         
@@ -931,14 +931,14 @@ class ExportWizard(QDialog):
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 10, 0)
         
-        self.aug_enabled = QCheckBox("Augmentation'ı Etkinleştir")
+        self.aug_enabled = QCheckBox(self.tr("Enable Augmentation"))
         self.aug_enabled.setStyleSheet("font-size: 13px; padding: 5px;")
         left_layout.addWidget(self.aug_enabled)
         
         mult_layout = QHBoxLayout()
-        mult_layout.addWidget(QLabel("Çarpan:"))
+        mult_layout.addWidget(QLabel(self.tr("Multiplier:")))
         self.aug_multiplier = QComboBox()
-        self._update_multiplier_options()  # Görsel sayısıyla birlikte
+        self._update_multiplier_options()
         mult_layout.addWidget(self.aug_multiplier)
         mult_layout.addStretch()
         left_layout.addLayout(mult_layout)
@@ -951,14 +951,14 @@ class ExportWizard(QDialog):
         settings_layout = QVBoxLayout(settings_widget)
         
         # Resize
-        resize_group = QGroupBox("Resize")
+        resize_group = QGroupBox(self.tr("Resize"))
         resize_layout = QVBoxLayout(resize_group)
         
-        self.resize_enabled = QCheckBox("Resize Aktif")
+        self.resize_enabled = QCheckBox(self.tr("Enable Resize"))
         resize_layout.addWidget(self.resize_enabled)
         
         size_layout = QHBoxLayout()
-        size_layout.addWidget(QLabel("Boyut:"))
+        size_layout.addWidget(QLabel(self.tr("Size:")))
         self.resize_width = QSpinBox()
         self.resize_width.setRange(32, 4096)
         self.resize_width.setValue(640)
@@ -972,7 +972,7 @@ class ExportWizard(QDialog):
         resize_layout.addLayout(size_layout)
         
         mode_layout = QHBoxLayout()
-        mode_layout.addWidget(QLabel("Mod:"))
+        mode_layout.addWidget(QLabel(self.tr("Mode:")))
         self.resize_mode = QComboBox()
         self.resize_mode.addItems([
             "Stretch to", "Fill (center crop)", "Fit within",
@@ -983,23 +983,23 @@ class ExportWizard(QDialog):
         settings_layout.addWidget(resize_group)
         
         # Augmentation sliders
-        aug_group = QGroupBox("Augmentation Parametreleri")
+        aug_group = QGroupBox(self.tr("Augmentation Parameters"))
         aug_layout = QVBoxLayout(aug_group)
         
         # Parlaklık - Roboflow tarzı Brighten/Darken checkboxları
-        brightness_group = QGroupBox("Parlaklık")
+        brightness_group = QGroupBox(self.tr("Brightness"))
         brightness_group.setToolTip(
-            "Parlaklık: Görselin aydınlık/karanlık seviyesini ayarlar.\n\n"
-            "• Brighten: Görseli aydınlatır\n"
-            "• Darken: Görseli karartır\n"
-            "• Değer %: Efekt yoğunluğu\n\n"
-            "Farklı ışık koşullarında genelleme için kullanılır."
+            self.tr("Brightness: Adjusts the light/dark level of the image.\n\n"
+            "• Brighten: Lightens the image\n"
+            "• Darken: Darkens the image\n"
+            "• Value %: Effect intensity\n\n"
+            "Used for generalization under different lighting conditions.")
         )
         brightness_layout = QVBoxLayout(brightness_group)
         
-        # Sürgü (0-99%)
+        # Slider (0-99%)
         slider_layout = QHBoxLayout()
-        slider_layout.addWidget(QLabel("Değer:"))
+        slider_layout.addWidget(QLabel(self.tr("Value:")))
         self.brightness_slider_value = QSlider(Qt.Orientation.Horizontal)
         self.brightness_slider_value.setRange(0, 99)
         self.brightness_slider_value.setValue(20)
@@ -1009,10 +1009,10 @@ class ExportWizard(QDialog):
         slider_layout.addWidget(self.brightness_value_label)
         brightness_layout.addLayout(slider_layout)
         
-        # Checkbox'lar
+        # Checkboxes
         checkbox_layout = QHBoxLayout()
-        self.brighten_checkbox = QCheckBox("Parlaklık (Brighten)")
-        self.darken_checkbox = QCheckBox("Karanlık (Darken)")
+        self.brighten_checkbox = QCheckBox(self.tr("Brighten"))
+        self.darken_checkbox = QCheckBox(self.tr("Darken"))
         checkbox_layout.addWidget(self.brighten_checkbox)
         checkbox_layout.addWidget(self.darken_checkbox)
         checkbox_layout.addStretch()
@@ -1021,33 +1021,33 @@ class ExportWizard(QDialog):
         aug_layout.addWidget(brightness_group)
         
         self.contrast_slider = AugmentationSlider(
-            "Kontrast", 50, 150, 120, "%",
-            help_text="Kontrast: Açık ve koyu tonlar arasındaki farkı ayarlar.\n\n"
-                      "• 100%: Orijinal kontrast\n"
-                      "• <100%: Düşük kontrast (daha soluk)\n"
-                      "• >100%: Yüksek kontrast (daha keskin)\n\n"
-                      "Farklı aydınlatma koşullarında genelleme için kullanılır."
+            self.tr("Contrast"), 50, 150, 120, "%",
+            help_text=self.tr("Contrast: Adjusts the difference between light and dark tones.\n\n"
+                      "• 100%: Original contrast\n"
+                      "• <100%: Low contrast (more faded)\n"
+                      "• >100%: High contrast (sharper)\n\n"
+                      "Used for generalization under different lighting conditions.")
         )
         aug_layout.addWidget(self.contrast_slider)
         
         self.rotation_slider = AugmentationSlider(
-            "Döndürme", 0, 45, 15, "°",
-            help_text="Döndürme (Rotation): Görseli rastgele açılarla döndürür.\n\n"
-                      "• 0°: Döndürme yok\n"
-                      "• 15°: ±15° aralığında döndürme\n"
-                      "• 45°: ±45° aralığında döndürme\n\n"
-                      "Nesnelerin farklı açılardan görünmesini öğretir."
+            self.tr("Rotation"), 0, 45, 15, "°",
+            help_text=self.tr("Rotation: Rotates the image at random angles.\n\n"
+                      "• 0°: No rotation\n"
+                      "• 15°: Rotation in ±15° range\n"
+                      "• 45°: Rotation in ±45° range\n\n"
+                      "Teaches recognition of objects from different angles.")
         )
         aug_layout.addWidget(self.rotation_slider)
         
-        # Flip (yüzde kontrolü ile)
-        flip_group = QGroupBox("Çevirme")
+        # Flip
+        flip_group = QGroupBox(self.tr("Flip"))
         flip_group.setToolTip(
-            "Çevirme (Flip): Görseli ayna gibi yansıtır.\n\n"
-            "• Yatay: Sol-sağ yansıtma\n"
-            "• Dikey: Üst-alt yansıtma\n"
-            "• Yüzde: Uygulanma olasılığı\n\n"
-            "Simetrik nesnelerde ve farklı bakış açılarında genelleme sağlar."
+            self.tr("Flip: Mirrors the image.\n\n"
+            "• Horizontal: Left-right mirroring\n"
+            "• Vertical: Top-bottom mirroring\n"
+            "• Percentage: Application probability\n\n"
+            "Provides generalization for symmetric objects and different viewing angles.")
         )
         flip_group.setCheckable(True)
         flip_group.setChecked(False)
@@ -1059,46 +1059,46 @@ class ExportWizard(QDialog):
         self.hflip_percent_spin.setRange(0, 100)
         self.hflip_percent_spin.setValue(50)
         self.hflip_percent_spin.setSuffix("%")
-        flip_layout.addRow("Yatay:", self.hflip_percent_spin)
+        flip_layout.addRow(self.tr("Horizontal:"), self.hflip_percent_spin)
         
         self.vflip_percent_spin = QSpinBox()
         self.vflip_percent_spin.setRange(0, 100)
         self.vflip_percent_spin.setValue(50)
         self.vflip_percent_spin.setSuffix("%")
-        flip_layout.addRow("Dikey:", self.vflip_percent_spin)
+        flip_layout.addRow(self.tr("Vertical:"), self.vflip_percent_spin)
         
         aug_layout.addWidget(flip_group)
         
         self.blur_slider = AugmentationSlider(
-            "Blur", 0, 50, 15, "",
-            help_text="Blur (Bulanıklık): Görsele Gaussian bulanıklık ekler.\n\n"
-                      "Birim: Kernel boyutu (piksel)\n\n"
-                      "Odak dışı veya hareketli nesnelerle başa çıkmayı öğretir."
+            self.tr("Blur"), 0, 50, 15, "",
+            help_text=self.tr("Blur: Adds Gaussian blur to the image.\n\n"
+                      "Unit: Kernel size (pixels)\n\n"
+                      "Teaches handling of out-of-focus or moving objects.")
         )
         aug_layout.addWidget(self.blur_slider)
         
         self.noise_slider = AugmentationSlider(
-            "Gürültü", 0, 50, 10, "",
-            help_text="Gürültü (Noise): Görsele rastgele piksel gürültüsü ekler.\n\n"
-                      "Birim: Standart sapma (sigma)\n"
-                      "Piksel değerlerine ±sigma kadar rastgele ekleme yapılır.\n\n"
-                      "Düşük kaliteli veya sensör gürültülü kameralarda genelleme için."
+            self.tr("Noise"), 0, 50, 10, "",
+            help_text=self.tr("Noise: Adds random pixel noise to the image.\n\n"
+                      "Unit: Standard deviation (sigma)\n"
+                      "Random values of ±sigma are added to pixel values.\n\n"
+                      "For generalization with low quality or noisy camera sensors.")
         )
         aug_layout.addWidget(self.noise_slider)
         
         self.hue_slider = AugmentationSlider(
-            "Renk Tonu", -30, 30, 10, "°",
-            help_text="Renk Tonu (Hue): Renk spektrumunda kaydırma yapar.\n\n"
-                      "Farklı aydınlatma renk sıcaklıklarına uyum sağlar."
+            self.tr("Hue"), -30, 30, 10, "°",
+            help_text=self.tr("Hue: Shifts colors in the color spectrum.\n\n"
+                      "Adapts to different lighting color temperatures.")
         )
         aug_layout.addWidget(self.hue_slider)
         
         # Grayscale (yüzde kontrolü ile)
-        grayscale_group = QGroupBox("Gri Tonlama")
+        grayscale_group = QGroupBox(self.tr("Grayscale"))
         grayscale_group.setToolTip(
-            "Gri Tonlama (Grayscale): Görseli siyah-beyaz yapar.\n\n"
-            "• Oran %: Gri tonlamaya dönüştürülecek görsel yüzdesi\n\n"
-            "Renk bilgisi olmadan da nesne tanıma öğretir."
+            self.tr("Grayscale: Converts the image to black and white.\n\n"
+            "• Rate %: Percentage of images to convert to grayscale\n\n"
+            "Teaches object recognition without color information.")
         )
         grayscale_group.setCheckable(True)
         grayscale_group.setChecked(False)
@@ -1110,34 +1110,34 @@ class ExportWizard(QDialog):
         self.grayscale_percent_spin.setRange(0, 100)
         self.grayscale_percent_spin.setValue(15)
         self.grayscale_percent_spin.setSuffix("%")
-        grayscale_layout.addRow("Oran:", self.grayscale_percent_spin)
+        grayscale_layout.addRow(self.tr("Rate:"), self.grayscale_percent_spin)
         
         aug_layout.addWidget(grayscale_group)
         
         # YENİ: Exposure
         self.exposure_slider = AugmentationSlider(
-            "Pozlama (Exposure)", 50, 200, 150, "%",
-            help_text="Pozlama (Exposure/Gamma): Işık maruziyetini ayarlar.\n\n"
-                      "• 100%: Orijinal\n"
-                      "• <100%: Az pozlanmış (karanlık)\n"
-                      "• >100%: Çok pozlanmış (aydınlık)\n\n"
-                      "Parlaklıktan farklı olarak renk tonlarını korur."
+            self.tr("Exposure"), 50, 200, 150, "%",
+            help_text=self.tr("Exposure (Gamma): Adjusts light exposure.\n\n"
+                      "• 100%: Original\n"
+                      "• <100%: Underexposed (darker)\n"
+                      "• >100%: Overexposed (brighter)\n\n"
+                      "Unlike brightness, preserves color tones.")
         )
         aug_layout.addWidget(self.exposure_slider)
         
         # YENİ: Cutout - Tek checkbox, boyut, adet ve uygulama yüzdesi
-        cutout_group = QGroupBox("Cutout")
+        cutout_group = QGroupBox(self.tr("Cutout"))
         cutout_group.setToolTip(
-            "Cutout: Görsele rastgele siyah kareler ekler.\n\n"
-            "Birim: Görsel boyutunun yüzdesi\n"
-            "• Boyut 10% = 640px görselde 64px kare\n\n"
-            "• Adet: Eklenecek kare sayısı\n"
-            "• Oran %: Uygulanma olasılığı\n\n"
-            "Modelin eksik bilgiyle çalışmasını (occlusion robustness) öğretir.\n\n"
-            "⚠ DİKKAT: YOLOv8 gibi bazı modern modeller, eğitim sırasında \n"
-            "benzer teknikleri (örn: erasing) otomatik uygulayabilir.\n"
-            "Bu işlemi hem burada hem eğitimde yapmak (çift uygulama),\n"
-            "model başarısını olumsuz etkileyebilir."
+            self.tr("Cutout: Adds random black squares to the image.\n\n"
+            "Unit: Percentage of image size\n"
+            "• Size 10% = 64px square on 640px image\n\n"
+            "• Count: Number of squares to add\n"
+            "• Rate %: Application probability\n\n"
+            "Teaches the model to work with missing information (occlusion robustness).\n\n"
+            "⚠ WARNING: Some modern models like YOLOv8 may automatically apply\n"
+            "similar techniques (e.g., erasing) during training.\n"
+            "Applying this both here and during training (double application)\n"
+            "may negatively affect model performance.")
         )
         cutout_group.setCheckable(True)
         cutout_group.setChecked(False)
@@ -1149,38 +1149,38 @@ class ExportWizard(QDialog):
         self.cutout_size_spin.setRange(5, 50)
         self.cutout_size_spin.setValue(10)
         self.cutout_size_spin.setSuffix("%")
-        cutout_layout.addRow("Boyut:", self.cutout_size_spin)
+        cutout_layout.addRow(self.tr("Size:"), self.cutout_size_spin)
         
         self.cutout_count_spin = QSpinBox()
         self.cutout_count_spin.setRange(1, 25)
         self.cutout_count_spin.setValue(3)
-        cutout_layout.addRow("Adet:", self.cutout_count_spin)
+        cutout_layout.addRow(self.tr("Count:"), self.cutout_count_spin)
         
         self.cutout_apply_percent_spin = QSpinBox()
         self.cutout_apply_percent_spin.setRange(0, 100)
         self.cutout_apply_percent_spin.setValue(50)
         self.cutout_apply_percent_spin.setSuffix("%")
-        cutout_layout.addRow("Oran:", self.cutout_apply_percent_spin)
+        cutout_layout.addRow(self.tr("Rate:"), self.cutout_apply_percent_spin)
         
         aug_layout.addWidget(cutout_group)
         
         # YENİ: Motion Blur
         self.motion_blur_slider = AugmentationSlider(
-            "Hareket Bulanıklığı", 0, 30, 15, "",
-            help_text="Hareket Bulanıklığı (Motion Blur): Yatay hareket efekti ekler.\n\n"
-                      "Birim: Kernel boyutu (piksel)\n\n"
-                      "Hareketli nesneleri algılamayı öğretir."
+            self.tr("Motion Blur"), 0, 30, 15, "",
+            help_text=self.tr("Motion Blur: Adds horizontal motion effect.\n\n"
+                      "Unit: Kernel size (pixels)\n\n"
+                      "Teaches detection of moving objects.")
         )
         aug_layout.addWidget(self.motion_blur_slider)
         
         # YENİ: Shear - Tek checkbox, yatay ve dikey
-        shear_group = QGroupBox("Shear (Eğiklik)")
+        shear_group = QGroupBox(self.tr("Shear"))
         shear_group.setToolTip(
-            "Shear (Eğiklik): Görseli yatay/dikey olarak eğer.\n\n"
-            "• Yatay: Yatay eğiklik açısı\n"
-            "• Dikey: Dikey eğiklik açısı\n\n"
-            "Perspektif varyasyonu sağlar,\n"
-            "farklı bakış açılarından genelleme öğretir."
+            self.tr("Shear: Tilts the image horizontally/vertically.\n\n"
+            "• Horizontal: Horizontal tilt angle\n"
+            "• Vertical: Vertical tilt angle\n\n"
+            "Provides perspective variation,\n"
+            "teaches generalization from different viewing angles.")
         )
         shear_group.setCheckable(True)
         shear_group.setChecked(False)
@@ -1192,13 +1192,13 @@ class ExportWizard(QDialog):
         self.shear_h_spin.setRange(0, 45)
         self.shear_h_spin.setValue(10)
         self.shear_h_spin.setSuffix("°")
-        shear_layout.addRow("Yatay:", self.shear_h_spin)
+        shear_layout.addRow(self.tr("Horizontal:"), self.shear_h_spin)
         
         self.shear_v_spin = QSpinBox()
         self.shear_v_spin.setRange(0, 45)
         self.shear_v_spin.setValue(10)
         self.shear_v_spin.setSuffix("°")
-        shear_layout.addRow("Dikey:", self.shear_v_spin)
+        shear_layout.addRow(self.tr("Vertical:"), self.shear_v_spin)
         
         aug_layout.addWidget(shear_group)
         
@@ -1210,11 +1210,11 @@ class ExportWizard(QDialog):
         
         main_layout.addWidget(left_panel, 1)
         
-        # Sağ panel - Önizleme
-        right_panel = QGroupBox("Canlı Önizleme")
+        # Right panel - Preview
+        right_panel = QGroupBox(self.tr("Live Preview"))
         right_layout = QVBoxLayout(right_panel)
         
-        self.preview_label = QLabel("Augmentation'ı aktifleştirin")
+        self.preview_label = QLabel(self.tr("Enable augmentation"))
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setMinimumSize(320, 320)
         self.preview_label.setStyleSheet("background-color: #1a1a1a; border: 1px solid #444; border-radius: 4px;")
@@ -1229,7 +1229,7 @@ class ExportWizard(QDialog):
         page = QWidget()
         layout = QVBoxLayout(page)
         
-        format_group = QGroupBox("Export Formatı")
+        format_group = QGroupBox(self.tr("Export Format"))
         format_layout = QVBoxLayout(format_group)
         
         self.format_btn_group = QButtonGroup(self)
@@ -1265,7 +1265,7 @@ class ExportWizard(QDialog):
         custom_layout = QVBoxLayout(self.custom_group)
         
         type_layout = QHBoxLayout()
-        type_layout.addWidget(QLabel("Tip:"))
+        type_layout.addWidget(QLabel(self.tr("Type:")))
         self.custom_type = QComboBox()
         self.custom_type.addItems(["TXT", "JSON"])
         type_layout.addWidget(self.custom_type)
@@ -1279,16 +1279,16 @@ class ExportWizard(QDialog):
         self.custom_group.setVisible(False)
         layout.addWidget(self.custom_group)
         
-        output_group = QGroupBox("Çıktı Klasörü")
+        output_group = QGroupBox(self.tr("Output Folder"))
         output_layout = QHBoxLayout(output_group)
         
         self.output_path = QLineEdit()
         if self._default_output_dir:
             self.output_path.setText(str(self._default_output_dir))
-        self.output_path.setPlaceholderText("Çıktı klasörünü seçin...")
+        self.output_path.setPlaceholderText(self.tr("Select output folder..."))
         output_layout.addWidget(self.output_path)
         
-        self.browse_btn = QPushButton("📁 Gözat...")
+        self.browse_btn = QPushButton(self.tr("📁 Browse..."))
         output_layout.addWidget(self.browse_btn)
         
         layout.addWidget(output_group)
@@ -1368,16 +1368,16 @@ class ExportWizard(QDialog):
     
     def _update_navigation(self):
         current = self.stack.currentIndex()
-        steps = ["Dataset Split", "Augmentation", "Format & Export"]
-        self.step_label.setText(f"Adım {current + 1}/3: {steps[current]}")
+        steps = [self.tr("Dataset Split"), self.tr("Augmentation"), self.tr("Format & Export")]
+        self.step_label.setText(self.tr("Step {}/3: {}").format(current + 1, steps[current]))
         
         self.back_btn.setVisible(current > 0)
         
         if current == 2:
-            self.next_btn.setText("📦 Dışa Aktar")
+            self.next_btn.setText(self.tr("📦 Export"))
             self.next_btn.setStyleSheet("padding: 10px 25px; background-color: #4CAF50; color: white; font-weight: bold;")
         else:
-            self.next_btn.setText("İleri →")
+            self.next_btn.setText(self.tr("Next →"))
             self.next_btn.setStyleSheet("padding: 10px 25px; background-color: #0d6efd; color: white;")
     
     def _on_split_toggled(self, enabled):
@@ -1395,7 +1395,7 @@ class ExportWizard(QDialog):
         total = len(filtered_files)
         
         if not self.split_enabled.isChecked():
-            self.split_summary.setText(f"Split devre dışı - {total} görsel tek klasöre yazılacak")
+            self.split_summary.setText(self.tr("Split disabled - {} images to single folder").format(total))
             return
         
         train_pct, val_pct, test_pct = self.range_slider.values()
@@ -1403,7 +1403,7 @@ class ExportWizard(QDialog):
         val = int(total * val_pct / 100)
         test = total - train - val
         
-        self.split_summary.setText(f"📂 Train: {train} görsel | Val: {val} görsel | Test: {test} görsel")
+        self.split_summary.setText(self.tr("📂 Train: {} images | Val: {} images | Test: {} images").format(train, val, test))
     
     def _on_unlabeled_toggled(self, checked: bool):
         """Etiketsiz checkbox değiştiğinde tüm bölümleri güncelle."""
@@ -1421,7 +1421,7 @@ class ExportWizard(QDialog):
         self.aug_multiplier.clear()
         for mult in [2, 3, 5, 8, 10, 15]:
             # Roboflow tarzı: 1 orijinal + (mult-1) augmented = toplam mult görsel
-            self.aug_multiplier.addItem(f"{mult}x → {count * mult} görsel (1 orijinal + {mult-1} augmented)")
+            self.aug_multiplier.addItem(self.tr("{}x → {} images (1 original + {} augmented)").format(mult, count * mult, mult-1))
     
     def _on_slider_changed(self, slider_name: str):
         """Hangi slider'ın değiştiğini takip et ve önizlemeyi güncelle."""
@@ -1516,7 +1516,7 @@ class ExportWizard(QDialog):
     
     def _browse_output(self):
         folder = QFileDialog.getExistingDirectory(
-            self, "Çıktı Klasörü Seç",
+            self, self.tr("Select Export Folder"),
             str(self._default_output_dir) if self._default_output_dir else ""
         )
         if folder:
@@ -1532,7 +1532,7 @@ class ExportWizard(QDialog):
             mult = int(mult_text) if mult_text.isdigit() else 2
             total *= mult
         
-        parts = [f"📊 Toplam {total} görsel export edilecek"]
+        parts = [self.tr("📊 Total {} images to export").format(total)]
         
         if self.aug_enabled.isChecked():
             mult_text = self.aug_multiplier.currentText().split('x')[0]
@@ -1704,7 +1704,7 @@ class ExportWizard(QDialog):
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         self.status_label.setVisible(True)
-        self.status_label.setText("Export başlatılıyor...")
+        self.status_label.setText(self.tr("Starting export..."))
         self.next_btn.setEnabled(False)
         
         # Format belirleme
@@ -1730,18 +1730,18 @@ class ExportWizard(QDialog):
     def _on_progress(self, current, total):
         self.progress_bar.setMaximum(total)
         self.progress_bar.setValue(current)
-        self.status_label.setText(f"Export ediliyor: {current}/{total}")
+        self.status_label.setText(self.tr("Exporting: {}/{}").format(current, total))
     
     def _on_export_finished(self, count):
         self.progress_bar.setValue(self.progress_bar.maximum())
-        QMessageBox.information(self, "Başarılı", f"✓ {count} görsel dışa aktarıldı.\n\nKonum: {self.output_path.text()}")
+        QMessageBox.information(self, self.tr("Success"), self.tr("✓ {} images exported.\n\nLocation: {}").format(count, self.output_path.text()))
         self.accept()
     
     def _on_export_error(self, error_msg):
         self.progress_bar.setVisible(False)
         self.status_label.setVisible(False)
         self.next_btn.setEnabled(True)
-        QMessageBox.critical(self, "Hata", f"Export hatası:\n{error_msg}")
+        QMessageBox.critical(self, self.tr("Error"), self.tr("Export error:\n{}").format(error_msg))
     
     def closeEvent(self, event):
         if self._worker and self._worker.isRunning():

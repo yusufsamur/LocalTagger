@@ -1,7 +1,7 @@
 """
-LocalFlow - Ana Uygulama Sınıfı
-===============================
-Uygulamanın ana penceresi ve genel koordinasyonu.
+LocalFlow - Main Application Class
+===================================
+Main window and application coordination.
 """
 
 from pathlib import Path
@@ -21,14 +21,17 @@ from core.sam_worker import SAMWorker
 
 
 class LocalFlowApp(QMainWindow):
-    """LocalFlow ana uygulama penceresi."""
+    """LocalFlow main application window."""
     
     SUPPORTED_FORMATS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif"}
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("LocalFlow v2.0 - Veri Etiketleme Aracı")
+        self.setWindowTitle(self.tr("LocalFlow v2.0 - Data Annotation Tool"))
         self.setMinimumSize(1200, 800)
+        
+        # Language manager (set from main.py)
+        self._language_manager = None
         
         # Managers
         self.project = Project()
@@ -74,40 +77,44 @@ class LocalFlowApp(QMainWindow):
     def _setup_menubar(self):
         menubar = self.menuBar()
         
-        # Dosya menüsü
-        file_menu = menubar.addMenu("&Dosya")
-        file_menu.addAction("Klasör Aç...", self._open_folder, QKeySequence("Ctrl+O"))
-        file_menu.addAction("Dosya Aç...", self._open_file, QKeySequence("Ctrl+Shift+O"))
+        # File menu
+        file_menu = menubar.addMenu(self.tr("&File"))
+        file_menu.addAction(self.tr("Open Folder..."), self._open_folder, QKeySequence("Ctrl+O"))
+        file_menu.addAction(self.tr("Open File..."), self._open_file, QKeySequence("Ctrl+Shift+O"))
         file_menu.addSeparator()
-        file_menu.addAction("Kaydet", self._save_annotations, QKeySequence("Ctrl+S"))
-        file_menu.addAction("Tümünü Kaydet", self._save_all_annotations, QKeySequence("Ctrl+Shift+S"))
+        file_menu.addAction(self.tr("Save"), self._save_annotations, QKeySequence("Ctrl+S"))
+        file_menu.addAction(self.tr("Save All"), self._save_all_annotations, QKeySequence("Ctrl+Shift+S"))
         file_menu.addSeparator()
-        file_menu.addAction("Dışa Aktar...", self._export_labels, QKeySequence("Ctrl+E"))
+        file_menu.addAction(self.tr("Export..."), self._export_labels, QKeySequence("Ctrl+E"))
         file_menu.addSeparator()
-        file_menu.addAction("Çıkış", self.close, QKeySequence("Ctrl+Q"))
+        file_menu.addAction(self.tr("Exit"), self.close, QKeySequence("Ctrl+Q"))
         
-        # Düzenle menüsü
-        edit_menu = menubar.addMenu("&Düzenle")
-        edit_menu.addAction("🏷️ Sınıf Yönetimi...", self._open_class_management)
+        # Edit menu
+        edit_menu = menubar.addMenu(self.tr("&Edit"))
+        edit_menu.addAction(self.tr("🏷️ Class Management..."), self._open_class_management)
         edit_menu.addSeparator()
-        edit_menu.addAction("Seçili Etiketi Sil", self._delete_selected_annotation, QKeySequence("Delete"))
-        edit_menu.addAction("Tüm Etiketleri Temizle", self._clear_all_annotations)
+        edit_menu.addAction(self.tr("Delete Selected Annotation"), self._delete_selected_annotation, QKeySequence("Delete"))
+        edit_menu.addAction(self.tr("Clear All Annotations"), self._clear_all_annotations)
         
-        # Görünüm menüsü
-        view_menu = menubar.addMenu("&Görünüm")
-        view_menu.addAction("Yakınlaştır", self._zoom_in, QKeySequence("Ctrl+="))
-        view_menu.addAction("Uzaklaştır", self._zoom_out, QKeySequence("Ctrl+-"))
-        view_menu.addAction("Sığdır", self._zoom_fit, QKeySequence("Ctrl+0"))
-        view_menu.addAction("Gerçek Boyut", self._zoom_reset, QKeySequence("Ctrl+1"))
+        # View menu
+        view_menu = menubar.addMenu(self.tr("&View"))
+        view_menu.addAction(self.tr("Zoom In"), self._zoom_in, QKeySequence("Ctrl+="))
+        view_menu.addAction(self.tr("Zoom Out"), self._zoom_out, QKeySequence("Ctrl+-"))
+        view_menu.addAction(self.tr("Fit to Window"), self._zoom_fit, QKeySequence("Ctrl+0"))
+        view_menu.addAction(self.tr("Actual Size"), self._zoom_reset, QKeySequence("Ctrl+1"))
         
-        # Yardım menüsü
-        help_menu = menubar.addMenu("&Yardım")
-        help_menu.addAction("Hakkında", self._show_about)
+        # Language menu (top level)
+        self._language_menu = menubar.addMenu(self.tr("&Language"))
+        self._setup_language_menu()
+        
+        # Help menu
+        help_menu = menubar.addMenu(self.tr("&Help"))
+        help_menu.addAction(self.tr("About"), self._show_about)
         
     def _setup_statusbar(self):
         self.statusbar = QStatusBar()
         self.setStatusBar(self.statusbar)
-        self.statusbar.showMessage("Hazır - Ctrl+O ile klasör açın")
+        self.statusbar.showMessage(self.tr("Ready - Press Ctrl+O to open a folder"))
         
     def _setup_shortcuts(self):
         # Navigasyon
@@ -131,8 +138,62 @@ class LocalFlowApp(QMainWindow):
         QShortcut(QKeySequence("Ctrl+C"), self, self._copy_annotations)
         QShortcut(QKeySequence("Ctrl+V"), self, self._paste_annotations)
         
-        # Toplu silme
+        # Bulk delete
         QShortcut(QKeySequence("Ctrl+Shift+Delete"), self, self._delete_all_annotations)
+    
+    def set_language_manager(self, manager):
+        """Set language manager from main.py."""
+        self._language_manager = manager
+        self._update_language_menu()
+    
+    def _setup_language_menu(self):
+        """Setup language selection submenu."""
+        if not hasattr(self, '_language_menu'):
+            return
+        self._language_menu.clear()
+        
+        # Add language options
+        from PySide6.QtGui import QActionGroup
+        self._lang_action_group = QActionGroup(self)
+        self._lang_action_group.setExclusive(True)
+        
+        languages = [("en", "English"), ("tr", "Türkçe")]
+        
+        for code, name in languages:
+            action = self._language_menu.addAction(name)
+            action.setCheckable(True)
+            action.setData(code)
+            self._lang_action_group.addAction(action)
+            action.triggered.connect(lambda checked, c=code: self._on_language_selected(c))
+    
+    def _update_language_menu(self):
+        """Update language menu checkmarks based on current language."""
+        if not self._language_manager or not hasattr(self, '_lang_action_group'):
+            return
+        
+        current = self._language_manager.current_language
+        for action in self._lang_action_group.actions():
+            action.setChecked(action.data() == current)
+    
+    def _on_language_selected(self, lang_code: str):
+        """Handle language selection from menu."""
+        if not self._language_manager:
+            return
+        
+        current = self._language_manager.current_language
+        if lang_code == current:
+            return
+        
+        # Change language
+        self._language_manager.set_language(lang_code)
+        
+        # Show restart message
+        QMessageBox.information(
+            self,
+            self.tr("Language Changed"),
+            self.tr("The language will be fully applied after restarting the application.")
+        )
+
         
     def _connect_signals(self):
         canvas = self.main_window.canvas_view
@@ -318,7 +379,7 @@ class LocalFlowApp(QMainWindow):
             if label_class:
                 self.main_window.canvas_view.set_draw_color(label_class.color)
             
-            self.statusbar.showMessage(f"✓ BBox eklendi: {label_class.name if label_class else 'object'}")
+            self.statusbar.showMessage(self.tr("✓ BBox added: {}").format(label_class.name if label_class else 'object'))
             
             # Geri çizim moduna geç
             self.main_window.set_tool("bbox")
@@ -343,7 +404,7 @@ class LocalFlowApp(QMainWindow):
         self.main_window.refresh_canvas()
         self.main_window.annotation_list_widget.refresh()
         
-        self.statusbar.showMessage("BBox iptal edildi")
+        self.statusbar.showMessage(self.tr("BBox cancelled"))
     
     def _on_bbox_cancelled(self):
         """Bbox sınıf seçimi iptal edildiğinde."""
@@ -357,7 +418,7 @@ class LocalFlowApp(QMainWindow):
                 except RuntimeError:
                     pass
         self._pending_bbox = None
-        self.statusbar.showMessage("BBox iptal edildi")
+        self.statusbar.showMessage(self.tr("BBox cancelled"))
         
     def _on_polygon_created(self, points: list):
         """Polygon oluşturulduğunda - popup göster."""
@@ -419,7 +480,7 @@ class LocalFlowApp(QMainWindow):
         self.main_window.annotation_list_widget.refresh()
         
         label_class = self.class_manager.get_by_id(class_id)
-        self.statusbar.showMessage(f"✓ Polygon eklendi: {label_class.name if label_class else 'object'}")
+        self.statusbar.showMessage(self.tr("✓ Polygon added: {}").format(label_class.name if label_class else 'object'))
     
     def _on_polygon_cancelled(self):
         """Polygon sınıf seçimi iptal edildiğinde."""
@@ -433,7 +494,7 @@ class LocalFlowApp(QMainWindow):
                 except RuntimeError:
                     pass
         self._pending_polygon = None
-        self.statusbar.showMessage("Polygon iptal edildi")
+        self.statusbar.showMessage(self.tr("Polygon cancelled"))
     
     def _on_ai_polygon_class_selected(self, class_id: int):
         """AI polygon için popup'tan sınıf seçildiğinde."""
@@ -466,7 +527,7 @@ class LocalFlowApp(QMainWindow):
             if label_class:
                 self.main_window.canvas_view.set_draw_color(label_class.color)
             
-            self.statusbar.showMessage(f"✓ AI Polygon sınıfı: {label_class.name if label_class else 'object'}")
+            self.statusbar.showMessage(self.tr("✓ AI Polygon class: {}").format(label_class.name if label_class else 'object'))
             
             # Geri polygon moduna geç
             self.main_window.set_tool("polygon")
@@ -492,7 +553,7 @@ class LocalFlowApp(QMainWindow):
         self.main_window.annotation_list_widget.refresh()
         
         self._pending_polygon = None
-        self.statusbar.showMessage("AI Polygon iptal edildi")
+        self.statusbar.showMessage(self.tr("AI Polygon cancelled"))
         
     def _on_class_selected(self, class_id: int):
         """Sınıf seçildiğinde."""
@@ -500,7 +561,7 @@ class LocalFlowApp(QMainWindow):
         label_class = self.class_manager.get_by_id(class_id)
         if label_class:
             self.main_window.set_draw_color(class_id)
-            self.statusbar.showMessage(f"Sınıf: {label_class.name}")
+            self.statusbar.showMessage(self.tr("Class: {}").format(label_class.name))
     
     def _on_bbox_moved(self, index: int, new_rect):
         """BBox taşındığında veya yeniden boyutlandırıldığında."""
@@ -526,7 +587,7 @@ class LocalFlowApp(QMainWindow):
             # Hemen labels klasörüne kaydet
             self.main_window._save_current_annotations()
             
-            self.statusbar.showMessage("✓ BBox güncellendi ve kaydedildi")
+            self.statusbar.showMessage(self.tr("✓ BBox updated and saved"))
     
     def _on_bbox_delete(self, index: int):
         """BBox silindiğinde."""
@@ -544,7 +605,7 @@ class LocalFlowApp(QMainWindow):
             self.main_window._save_current_annotations()
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
-            self.statusbar.showMessage("✓ BBox silindi")
+            self.statusbar.showMessage(self.tr("✓ BBox deleted"))
     
     def _on_bbox_class_change(self, index: int, pos):
         """BBox sınıf değiştirme isteğinde."""
@@ -606,7 +667,7 @@ class LocalFlowApp(QMainWindow):
             self.main_window.annotation_list_widget.refresh()
             
             label_class = self.class_manager.get_by_id(new_class_id)
-            self.statusbar.showMessage(f"✓ BBox sınıfı güncellendi: {label_class.name if label_class else 'object'}")
+            self.statusbar.showMessage(self.tr("✓ BBox class updated: {}").format(label_class.name if label_class else 'object'))
     
     # ─────────────────────────────────────────────────────────────────
     # Polygon Editing Handlers
@@ -633,7 +694,7 @@ class LocalFlowApp(QMainWindow):
             # Hemen labels klasörüne kaydet
             self.main_window._save_current_annotations()
             
-            self.statusbar.showMessage("✓ Polygon güncellendi ve kaydedildi")
+            self.statusbar.showMessage(self.tr("✓ Polygon updated and saved"))
     
     def _on_polygon_delete(self, index: int):
         """Polygon silindiğinde."""
@@ -651,7 +712,7 @@ class LocalFlowApp(QMainWindow):
             self.main_window._save_current_annotations()
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
-            self.statusbar.showMessage("✓ Polygon silindi")
+            self.statusbar.showMessage(self.tr("✓ Polygon deleted"))
     
     def _on_polygon_class_change(self, index: int, pos):
         """Polygon sınıf değiştirme isteğinde."""
@@ -711,12 +772,12 @@ class LocalFlowApp(QMainWindow):
             self.main_window.annotation_list_widget.refresh()
             
             label_class = self.class_manager.get_by_id(new_class_id)
-            self.statusbar.showMessage(f"✓ Polygon sınıfı güncellendi: {label_class.name if label_class else 'object'}")
+            self.statusbar.showMessage(self.tr("✓ Polygon class updated: {}").format(label_class.name if label_class else 'object'))
             
     def _on_tool_changed(self, tool: str):
         """Araç değiştiğinde."""
-        tool_names = {"select": "Seç", "bbox": "BBox", "polygon": "Polygon"}
-        self.statusbar.showMessage(f"Araç: {tool_names.get(tool, tool)}")
+        tool_names = {"select": self.tr("Select"), "bbox": "BBox", "polygon": "Polygon"}
+        self.statusbar.showMessage(self.tr("Tool: {}").format(tool_names.get(tool, tool)))
     
     def _open_class_management(self):
         """Sınıf yönetimi dialogunu aç."""
@@ -734,12 +795,12 @@ class LocalFlowApp(QMainWindow):
         self.main_window.annotation_list_widget.refresh()
         # Canvas'ı yeniden çiz (renk değişiklikleri için)
         self.main_window.refresh_canvas()
-        self.statusbar.showMessage("Sınıflar güncellendi")
+        self.statusbar.showMessage(self.tr("Classes updated"))
     
     def _undo(self):
         """Son işlemi geri al."""
         if not self.annotation_manager.can_undo():
-            self.statusbar.showMessage("Geri alınacak işlem yok")
+            self.statusbar.showMessage(self.tr("Nothing to undo"))
             return
         
         image_path, success = self.annotation_manager.undo()
@@ -749,14 +810,14 @@ class LocalFlowApp(QMainWindow):
             # Canvas'ı yenile
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
-            self.statusbar.showMessage("↩️ Geri alındı")
+            self.statusbar.showMessage(self.tr("↩️ Undone"))
         else:
-            self.statusbar.showMessage("Geri alma başarısız")
+            self.statusbar.showMessage(self.tr("Undo failed"))
     
     def _redo(self):
         """Son geri alınan işlemi yeniden yap."""
         if not self.annotation_manager.can_redo():
-            self.statusbar.showMessage("İleri alınacak işlem yok")
+            self.statusbar.showMessage(self.tr("Nothing to redo"))
             return
         
         image_path, success = self.annotation_manager.redo()
@@ -766,9 +827,9 @@ class LocalFlowApp(QMainWindow):
             # Canvas'ı yenile
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
-            self.statusbar.showMessage("↪️ Yeniden yapıldı")
+            self.statusbar.showMessage(self.tr("↪️ Redone"))
         else:
-            self.statusbar.showMessage("İleri alma başarısız")
+            self.statusbar.showMessage(self.tr("Redo failed"))
     
     def _copy_annotations(self):
         """Seçili etiketi veya tüm etiketleri kopyala.
@@ -778,7 +839,7 @@ class LocalFlowApp(QMainWindow):
         """
         image_path = self.main_window.get_current_image_path()
         if not image_path:
-            self.statusbar.showMessage("Kopyalanacak görsel yok!")
+            self.statusbar.showMessage(self.tr("No image to copy from!"))
             return
         
         import copy
@@ -813,18 +874,18 @@ class LocalFlowApp(QMainWindow):
             
             total = len(self._clipboard_bboxes) + len(self._clipboard_polygons)
             if total > 0:
-                self.statusbar.showMessage(f"📋 {total} seçili etiket kopyalandı")
+                self.statusbar.showMessage(self.tr("📋 {} selected annotation(s) copied").format(total))
             else:
-                self.statusbar.showMessage("Seçili etiket bulunamadı")
+                self.statusbar.showMessage(self.tr("Selected annotation not found"))
         else:
             # Hiçbir şey seçili değilse uyarı göster
-            self.statusbar.showMessage("Kopyalamak için önce bir etiket seçin")
+            self.statusbar.showMessage(self.tr("Select an annotation first to copy"))
     
     def _paste_annotations(self):
         """Kopyalanan etiketleri mevcut görsele yapıştır."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
-            self.statusbar.showMessage("Yapıştırılacak görsel yok!")
+            self.statusbar.showMessage(self.tr("No image to paste to!"))
             return
         
         # Clipboard kontrolü
@@ -832,7 +893,7 @@ class LocalFlowApp(QMainWindow):
         polygons = getattr(self, '_clipboard_polygons', [])
         
         if not bboxes and not polygons:
-            self.statusbar.showMessage("Yapıştırılacak etiket yok (önce Ctrl+C ile kopyalayın)")
+            self.statusbar.showMessage(self.tr("Nothing to paste (copy with Ctrl+C first)"))
             return
         
         # Offset değeri (%2 sağ-aşağı kaydırma)
@@ -862,27 +923,26 @@ class LocalFlowApp(QMainWindow):
         self.main_window.annotation_list_widget.refresh()
         
         total = len(bboxes) + len(polygons)
-        self.statusbar.showMessage(f"📋 {total} etiket yapıştırıldı")
+        self.statusbar.showMessage(self.tr("📋 {} annotation(s) pasted").format(total))
     
     def _delete_all_annotations(self):
         """Mevcut görseldeki tüm etiketleri sil."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
-            self.statusbar.showMessage("Silinecek görsel yok!")
+            self.statusbar.showMessage(self.tr("No image to delete from!"))
             return
         
         annotations = self.annotation_manager.get_annotations(image_path)
         total = len(annotations.bboxes) + len(annotations.polygons)
         
         if total == 0:
-            self.statusbar.showMessage("Silinecek etiket yok")
+            self.statusbar.showMessage(self.tr("No annotations to delete"))
             return
         
         # Onay al
         result = QMessageBox.question(
-            self, "Tümünü Sil",
-            f"Bu görseldeki {total} etiketi silmek istediğinize emin misiniz?\n\n"
-            "Bu işlem geri alınamaz!",
+            self, self.tr("Delete All"),
+            self.tr("Are you sure you want to delete {} annotations from this image?\n\nThis action cannot be undone!").format(total),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
@@ -892,7 +952,7 @@ class LocalFlowApp(QMainWindow):
             self.main_window._save_current_annotations()
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
-            self.statusbar.showMessage(f"🗑️ {total} etiket silindi")
+            self.statusbar.showMessage(self.tr("🗑️ {} annotation(s) deleted").format(total))
     
     # ─────────────────────────────────────────────────────────────────
     # Kayıt İşlemleri
@@ -902,7 +962,7 @@ class LocalFlowApp(QMainWindow):
         """Mevcut görselin annotasyonlarını labels klasörüne kaydet."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
-            self.statusbar.showMessage("Kaydedilecek görsel yok!")
+            self.statusbar.showMessage(self.tr("No image to save!"))
             return
         
         # Labels klasörünü belirle
@@ -915,12 +975,12 @@ class LocalFlowApp(QMainWindow):
         
         labels_dir.mkdir(parents=True, exist_ok=True)
         self.annotation_manager.save_yolo(image_path, labels_dir)
-        self.statusbar.showMessage(f"✓ Kaydedildi: {image_p.stem}.txt")
+        self.statusbar.showMessage(self.tr("✓ Saved: {}.txt").format(image_p.stem))
         
     def _save_all_annotations(self):
         """Tüm annotasyonları labels klasörüne kaydet."""
         if not self.project.root_path:
-            self.statusbar.showMessage("Kaynak klasör yok!")
+            self.statusbar.showMessage(self.tr("No source folder!"))
             return
         
         # Labels klasörünü belirle
@@ -939,16 +999,16 @@ class LocalFlowApp(QMainWindow):
             
         # classes.txt kaydet
         self.class_manager.save_to_file(labels_dir / "classes.txt")
-        self.statusbar.showMessage(f"✓ {count} dosya kaydedildi")
+        self.statusbar.showMessage(self.tr("✓ {} file(s) saved").format(count))
         
     def _export_labels(self):
         """Dışa aktarım dialogunu aç - augmentation ve split destekli."""
         if not self.project.root_path:
-            self.statusbar.showMessage("Önce bir klasör açın!")
+            self.statusbar.showMessage(self.tr("Open a folder first!"))
             return
         
         if not self.project.image_files:
-            self.statusbar.showMessage("Export edilecek görsel yok!")
+            self.statusbar.showMessage(self.tr("No images to export!"))
             return
         
         # Export öncesi mevcut görselin etiketlerini kaydet
@@ -1028,7 +1088,7 @@ class LocalFlowApp(QMainWindow):
         if image_path:
             self.annotation_manager.clear_annotations(image_path)
             self.main_window.annotation_list_widget.refresh()
-            self.statusbar.showMessage("Tüm etiketler temizlendi")
+            self.statusbar.showMessage(self.tr("All annotations cleared"))
     
     # ─────────────────────────────────────────────────────────────────
     # Drag & Drop
@@ -1068,15 +1128,15 @@ class LocalFlowApp(QMainWindow):
     # ─────────────────────────────────────────────────────────────────
     
     def _open_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Görsel Klasörü Seç")
+        folder = QFileDialog.getExistingDirectory(self, self.tr("Select Image Folder"))
         if folder:
             self._load_folder(folder)
             
     def _open_file(self):
         formats = " ".join(f"*{ext}" for ext in self.SUPPORTED_FORMATS)
         files, _ = QFileDialog.getOpenFileNames(
-            self, "Görsel Dosyaları Seç", "",
-            f"Görsel Dosyaları ({formats})"
+            self, self.tr("Select Images"), "",
+            self.tr("Image Files ({})").format(formats)
         )
         if files:
             self._load_files([Path(f) for f in files])
@@ -1121,9 +1181,9 @@ class LocalFlowApp(QMainWindow):
             self._preload_all_annotations(labels_dir)
             
             class_count = self.class_manager.count
-            self.statusbar.showMessage(f"📁 {count} görsel, {class_count} sınıf yüklendi")
+            self.statusbar.showMessage(self.tr("📁 {} images, {} classes loaded").format(count, class_count))
         else:
-            self.statusbar.showMessage("Klasörde görsel bulunamadı!")
+            self.statusbar.showMessage(self.tr("No images found in folder!"))
     
     def _load_classes_from_yaml(self, root_dir: Path) -> bool:
         """data.yaml dosyasından sınıfları yükle.
@@ -1158,7 +1218,7 @@ class LocalFlowApp(QMainWindow):
                             for class_id, name in enumerate(names):
                                 self.class_manager.add_class_with_id(class_id, name)
                         
-                        self.statusbar.showMessage(f"✓ data.yaml'dan {len(names)} sınıf yüklendi")
+                        self.statusbar.showMessage(self.tr("✓ {} classes loaded from data.yaml").format(len(names)))
                         return True
                 except Exception as e:
                     print(f"data.yaml okuma hatası: {e}")
@@ -1175,7 +1235,7 @@ class LocalFlowApp(QMainWindow):
         
         # Kullanıcıya bilgi ver
         from PySide6.QtWidgets import QApplication
-        self.statusbar.showMessage("🔍 Etiket dosyaları taranıyor...")
+        self.statusbar.showMessage(self.tr("🔍 Scanning label files..."))
         QApplication.processEvents()  # UI'ı güncelle
         
         discovered_ids = set()
@@ -1193,7 +1253,7 @@ class LocalFlowApp(QMainWindow):
             
             # Her 100 dosyada bir UI güncelle
             if file_count % 100 == 0:
-                self.statusbar.showMessage(f"🔍 Taranıyor... {file_count}/{total_files}")
+                self.statusbar.showMessage(self.tr("🔍 Scanning... {}/{}").format(file_count, total_files))
                 QApplication.processEvents()
             
             try:
@@ -1235,7 +1295,7 @@ class LocalFlowApp(QMainWindow):
         if not labels_dir.exists():
             return
         
-        self.statusbar.showMessage("📊 Etiketler yükleniyor...")
+        self.statusbar.showMessage(self.tr("📊 Loading annotations..."))
         QApplication.processEvents()
         
         loaded_count = 0
@@ -1250,7 +1310,7 @@ class LocalFlowApp(QMainWindow):
             
             # Her 50 dosyada bir UI güncelle
             if loaded_count % 50 == 0:
-                self.statusbar.showMessage(f"📊 Etiketler yükleniyor... {loaded_count}/{total_files}")
+                self.statusbar.showMessage(self.tr("📊 Loading annotations... {}/{}").format(loaded_count, total_files))
                 QApplication.processEvents()
             
             # Eşleşen görsel dosyasını bul
@@ -1292,7 +1352,7 @@ class LocalFlowApp(QMainWindow):
         
         self.main_window.populate_file_list(self.project.image_files)
         self.main_window.file_list.setCurrentRow(0)
-        self.statusbar.showMessage(f"🖼️ {len(image_files)} görsel yüklendi")
+        self.statusbar.showMessage(self.tr("🖼️ {} images loaded").format(len(image_files)))
             
     def _next_image(self):
         # Açık popup varsa kapat
@@ -1333,7 +1393,7 @@ class LocalFlowApp(QMainWindow):
         
     def _on_zoom_changed(self, level: float):
         percent = int(level * 100)
-        self.statusbar.showMessage(f"Zoom: %{percent}")
+        self.statusbar.showMessage(self.tr("Zoom: {}%").format(percent))
         
     def _on_mouse_position(self, x: int, y: int):
         percent = int(self.main_window.canvas_view.zoom_level * 100)
@@ -1346,45 +1406,45 @@ class LocalFlowApp(QMainWindow):
     # ─────────────────────────────────────────────────────────────────
     
     def _show_about(self):
-        about_text = """<h2>LocalFlow v2.0</h2>
-<p><b>AI Destekli Veri Etiketleme Aracı</b></p>
+        about_text = self.tr("""<h2>LocalFlow v2.0</h2>
+<p><b>AI-Powered Data Annotation Tool</b></p>
 
-<h3>🤖 AI Özellikleri (MobileSAM)</h3>
+<h3>🤖 AI Features (MobileSAM)</h3>
 <ul>
-<li><b>T</b> tuşu ile AI'ı etkinleştir</li>
-<li>Tıkla → Otomatik BBox veya Polygon</li>
-<li>Arka planda çalışır, UI donmaz</li>
+<li>Press <b>T</b> to enable AI</li>
+<li>Click → Automatic BBox or Polygon</li>
+<li>Runs in background, UI stays responsive</li>
 </ul>
 
-<h3>⌨️ Kısayollar</h3>
+<h3>⌨️ Shortcuts</h3>
 <table>
-<tr><td><b>T</b></td><td>AI Toggle</td><td><b>W</b></td><td>BBox çiz</td></tr>
-<tr><td><b>E</b></td><td>Polygon çiz</td><td><b>Q</b></td><td>Seç/Düzenle</td></tr>
-<tr><td><b>A/D</b></td><td>Görsel değiştir</td><td><b>Ctrl+S</b></td><td>Kaydet</td></tr>
-<tr><td><b>Ctrl+E</b></td><td>Dışa Aktar</td><td><b>Del</b></td><td>Sil</td></tr>
-<tr><td><b>ESC</b></td><td>İptal</td><td></td><td></td></tr>
+<tr><td><b>T</b></td><td>AI Toggle</td><td><b>W</b></td><td>Draw BBox</td></tr>
+<tr><td><b>E</b></td><td>Draw Polygon</td><td><b>Q</b></td><td>Select/Edit</td></tr>
+<tr><td><b>A/D</b></td><td>Change Image</td><td><b>Ctrl+S</b></td><td>Save</td></tr>
+<tr><td><b>Ctrl+E</b></td><td>Export</td><td><b>Del</b></td><td>Delete</td></tr>
+<tr><td><b>ESC</b></td><td>Cancel</td><td></td><td></td></tr>
 </table>
 
-<h3>📦 Export Formatları</h3>
+<h3>📦 Export Formats</h3>
 <ul>
 <li><b>YOLO</b>: v5, v6, v7, v8, v9, v10, v11</li>
-<li><b>COCO</b>: JSON formatı (segmentation dahil)</li>
-<li><b>Pascal VOC</b>: XML formatı</li>
-<li><b>Custom</b>: Özel TXT veya JSON format</li>
+<li><b>COCO</b>: JSON format (with segmentation)</li>
+<li><b>Pascal VOC</b>: XML format</li>
+<li><b>Custom</b>: Custom TXT or JSON format</li>
 </ul>
 
-<h3>💡 İpuçları</h3>
+<h3>💡 Tips</h3>
 <ul>
-<li>BBox/Polygon: Çift tık = sınıf değiştir</li>
-<li>Q modu: Seç, taşı, köşelerden boyutlandır</li>
-<li>Etiketler otomatik labels/ klasörüne kaydedilir</li>
-<li>AI modunda nesneye tıkla, otomatik segmentasyon!</li>
+<li>BBox/Polygon: Double-click = change class</li>
+<li>Q mode: Select, move, resize from corners</li>
+<li>Labels are automatically saved to labels/ folder</li>
+<li>In AI mode, click on object for auto segmentation!</li>
 </ul>
 
 <p style="color: gray; font-size: 10px;">© 2026 LocalFlow</p>
-"""
+""")
         msg = QMessageBox(self)
-        msg.setWindowTitle("LocalFlow Hakkında")
+        msg.setWindowTitle(self.tr("About LocalFlow"))
         msg.setTextFormat(Qt.TextFormat.RichText)
         msg.setText(about_text)
         msg.setIcon(QMessageBox.Icon.Information)
@@ -1399,8 +1459,8 @@ class LocalFlowApp(QMainWindow):
         if self.annotation_manager.is_dirty():
             reply = QMessageBox.question(
                 self,
-                "Kaydedilmemiş Değişiklikler",
-                "Kaydedilmemiş değişiklikler var. Kaydetmeden çıkmak istiyor musunuz?",
+                self.tr("Unsaved Changes"),
+                self.tr("There are unsaved changes. Do you want to exit without saving?"),
                 QMessageBox.StandardButton.Save | 
                 QMessageBox.StandardButton.Discard | 
                 QMessageBox.StandardButton.Cancel
@@ -1460,7 +1520,7 @@ class LocalFlowApp(QMainWindow):
     def _toggle_magic_pixel(self):
         """Magic Pixel toggle kısayolu (T tuşu)."""
         if not self._sam_worker.is_model_loaded:
-            self.statusbar.showMessage("⏳ SAM modeli yükleniyor, lütfen bekleyin...")
+            self.statusbar.showMessage(self.tr("⏳ SAM model is loading, please wait..."))
             return
         
         # Magic Pixel aktifse kapat, değilse aç
@@ -1472,7 +1532,7 @@ class LocalFlowApp(QMainWindow):
     def _toggle_magic_box(self):
         """Magic Box toggle kısayolu (Y tuşu)."""
         if not self._sam_worker.is_model_loaded:
-            self.statusbar.showMessage("⏳ SAM modeli yükleniyor, lütfen bekleyin...")
+            self.statusbar.showMessage(self.tr("⏳ SAM model is loading, please wait..."))
             return
         
         # Magic Box aktifse kapat, değilse aç
@@ -1484,35 +1544,35 @@ class LocalFlowApp(QMainWindow):
     def _on_sam_toggled(self, enabled: bool):
         """SAM toggle değiştiğinde."""
         if enabled:
-            self.statusbar.showMessage("🤖 AI modu açıldı - Nesneye tıklayın")
+            self.statusbar.showMessage(self.tr("🤖 AI mode enabled - Click on an object"))
             # Eğer görsel varsa encoding başlat
             self._encode_current_image()
         else:
-            self.statusbar.showMessage("🤖 AI modu kapatıldı")
+            self.statusbar.showMessage(self.tr("🤖 AI mode disabled"))
     
     def _on_sam_model_loaded(self):
         """SAM modeli yüklendiğinde."""
         self.main_window.set_sam_ready(True)
-        self.statusbar.showMessage("✓ SAM modeli yüklendi - T tuşu ile AI'ı etkinleştirin")
+        self.statusbar.showMessage(self.tr("✓ SAM model loaded - Press T to enable AI"))
     
     def _on_sam_model_failed(self, error: str):
         """SAM model yükleme hatası."""
         self.main_window.set_sam_ready(False)
-        self.statusbar.showMessage(f"❌ SAM model hatası: {error}")
+        self.statusbar.showMessage(self.tr("❌ SAM model error: {}").format(error))
     
     def _on_sam_encoding_started(self):
         """Görsel encoding başladığında."""
-        self.main_window.set_sam_status("⏳ Analiz ediliyor...")
+        self.main_window.set_sam_status(self.tr("⏳ Analyzing..."))
     
     def _on_sam_encoding_finished(self):
         """Görsel encoding tamamlandığında."""
-        self.main_window.set_sam_status("✓ Hazır")
-        self.statusbar.showMessage("🤖 AI hazır - Nesneye tıklayın")
+        self.main_window.set_sam_status(self.tr("✓ Ready"))
+        self.statusbar.showMessage(self.tr("🤖 AI ready - Click on an object"))
     
     def _on_sam_error(self, error: str):
         """SAM hatası oluştuğunda."""
         self.main_window.set_sam_status("")
-        self.statusbar.showMessage(f"❌ SAM hatası: {error}")
+        self.statusbar.showMessage(self.tr("❌ SAM error: {}").format(error))
     
     def _on_sam_click(self, x: int, y: int, mode: str):
         """Canvas'tan SAM tıklaması geldiğinde."""
@@ -1521,10 +1581,10 @@ class LocalFlowApp(QMainWindow):
             return
         
         if not self._sam_worker.is_ready:
-            self.statusbar.showMessage("⏳ Lütfen bekleyin, görsel analiz ediliyor...")
+            self.statusbar.showMessage(self.tr("⏳ Please wait, analyzing image..."))
             return
         
-        self.statusbar.showMessage(f"🔍 AI segmentasyon yapılıyor... ({x}, {y})")
+        self.statusbar.showMessage(self.tr("🔍 AI segmentation in progress... ({}, {})").format(x, y))
         self._sam_worker.request_infer_point(x, y, mode)
     
     def _on_sam_box(self, x1: int, y1: int, x2: int, y2: int, mode: str):
@@ -1628,7 +1688,7 @@ class LocalFlowApp(QMainWindow):
                 # Select moduna geç - polygon düzenlenebilsin
                 self.main_window.set_tool("select")
                 
-                self.statusbar.showMessage(f"✓ AI Polygon oluşturuldu - Sınıf seçin")
+                self.statusbar.showMessage(self.tr("✓ AI Polygon created - Select class"))
     
     def _encode_current_image(self):
         """Mevcut görseli SAM için encode et."""
@@ -1649,7 +1709,7 @@ class LocalFlowApp(QMainWindow):
             if image is None:
                 return
         except Exception as e:
-            self.statusbar.showMessage(f"❌ Görsel okunamadı: {e}")
+            self.statusbar.showMessage(self.tr("❌ Could not read image: {}").format(e))
             return
         
         # Encoding başlat

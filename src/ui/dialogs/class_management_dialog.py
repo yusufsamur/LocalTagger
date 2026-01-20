@@ -1,7 +1,7 @@
 """
-Sınıf Yönetimi Dialogu
-======================
-Etiket sınıflarını ekleme, silme, düzenleme ve renk değiştirme işlemlerini yönetir.
+Class Management Dialog
+=======================
+Manages adding, deleting, editing and changing colors of label classes.
 """
 
 from PySide6.QtWidgets import (
@@ -29,7 +29,7 @@ class ClassManagementDialog(QDialog):
         self._class_manager = class_manager
         self._annotation_manager = annotation_manager
         
-        self.setWindowTitle("Sınıf Yönetimi")
+        self.setWindowTitle(self.tr("Class Management"))
         self.setMinimumSize(500, 400)
         
         self._setup_ui()
@@ -40,15 +40,15 @@ class ClassManagementDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         
-        # Başlık
-        title = QLabel("🏷️ Etiket Sınıfları")
+        # Title
+        title = QLabel(self.tr("🏷️ Label Classes"))
         title.setStyleSheet("font-weight: bold; font-size: 16px;")
         layout.addWidget(title)
         
         # Tablo
         self.table = QTableWidget()
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["ID", "Sınıf Adı", "Renk", "Etiket", "Fotoğraf"])
+        self.table.setHorizontalHeaderLabels(["ID", self.tr("Class Name"), self.tr("Color"), self.tr("Labels"), self.tr("Images")])
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -62,28 +62,28 @@ class ClassManagementDialog(QDialog):
         # Butonlar
         button_layout = QHBoxLayout()
         
-        self.add_btn = QPushButton("➕ Yeni Sınıf Ekle")
+        self.add_btn = QPushButton(self.tr("➕ Add New Class"))
         self.add_btn.setStyleSheet("padding: 8px 16px;")
         button_layout.addWidget(self.add_btn)
         
-        self.rename_btn = QPushButton("✏️ Yeniden Adlandır")
+        self.rename_btn = QPushButton(self.tr("✏️ Rename"))
         self.rename_btn.setStyleSheet("padding: 8px 16px;")
         button_layout.addWidget(self.rename_btn)
         
-        self.color_btn = QPushButton("🎨 Renk Değiştir")
+        self.color_btn = QPushButton(self.tr("🎨 Change Color"))
         self.color_btn.setStyleSheet("padding: 8px 16px;")
         button_layout.addWidget(self.color_btn)
         
-        self.delete_btn = QPushButton("🗑️ Sil")
+        self.delete_btn = QPushButton(self.tr("🗑️ Delete"))
         self.delete_btn.setStyleSheet("padding: 8px 16px; color: #ff4444;")
         button_layout.addWidget(self.delete_btn)
         
         layout.addLayout(button_layout)
         
-        # Kapat butonu
+        # Close button
         close_layout = QHBoxLayout()
         close_layout.addStretch()
-        self.close_btn = QPushButton("Kapat")
+        self.close_btn = QPushButton(self.tr("Close"))
         self.close_btn.setStyleSheet("padding: 8px 24px;")
         close_layout.addWidget(self.close_btn)
         layout.addLayout(close_layout)
@@ -193,7 +193,7 @@ class ClassManagementDialog(QDialog):
     def _add_class(self):
         """Yeni sınıf ekle."""
         name, ok = QInputDialog.getText(
-            self, "Yeni Sınıf Ekle", "Sınıf adı:",
+            self, self.tr("Add New Class"), self.tr("Class name:"),
             text=""
         )
         if ok and name.strip():
@@ -212,7 +212,7 @@ class ClassManagementDialog(QDialog):
         """Seçili sınıfı yeniden adlandır veya başka bir sınıfla birleştir."""
         class_id = self._get_selected_class_id()
         if class_id < 0:
-            QMessageBox.warning(self, "Uyarı", "Lütfen bir sınıf seçin.")
+            QMessageBox.warning(self, self.tr("Warning"), self.tr("Please select a class."))
             return
             
         label_class = self._class_manager.get_by_id(class_id)
@@ -220,7 +220,7 @@ class ClassManagementDialog(QDialog):
             return
             
         name, ok = QInputDialog.getText(
-            self, "Sınıfı Yeniden Adlandır", "Yeni ad:",
+            self, self.tr("Rename Class"), self.tr("New name:"),
             text=label_class.name
         )
         if ok and name.strip():
@@ -232,11 +232,11 @@ class ClassManagementDialog(QDialog):
             if existing_class and existing_class.id != class_id:
                 # Birleştirme seçeneği sun
                 result = QMessageBox.question(
-                    self, "Sınıf Birleştirme",
-                    f"'{new_name}' adında zaten bir sınıf mevcut.\n\n"
-                    f"'{label_class.name}' sınıfındaki tüm etiketleri "
-                    f"'{new_name}' sınıfına taşımak ve birleştirmek ister misiniz?\n\n"
-                    f"Bu işlem geri alınamaz!",
+                    self, self.tr("Merge Classes"),
+                    self.tr("A class named '{}' already exists.\n\n"
+                    "Would you like to move all labels from '{}' class "
+                    "to '{}' class and merge them?\n\n"
+                    "This action cannot be undone!").format(new_name, label_class.name, new_name),
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     QMessageBox.StandardButton.No
                 )
@@ -321,16 +321,16 @@ class ClassManagementDialog(QDialog):
         self.classes_changed.emit()
         
         QMessageBox.information(
-            self, "Birleştirme Tamamlandı",
-            f"'{source_class.name}' sınıfı '{target_class.name}' ile birleştirildi.\n\n"
-            f"{updated_count} etiket güncellendi ve kaydedildi."
+            self, self.tr("Merge Complete"),
+            self.tr("Class '{}' was merged with '{}'.\n\n"
+            "{} labels were updated and saved.").format(source_class.name, target_class.name, updated_count)
         )
     
     def _change_color(self):
         """Seçili sınıfın rengini değiştir."""
         class_id = self._get_selected_class_id()
         if class_id < 0:
-            QMessageBox.warning(self, "Uyarı", "Lütfen bir sınıf seçin.")
+            QMessageBox.warning(self, self.tr("Warning"), self.tr("Please select a class."))
             return
             
         label_class = self._class_manager.get_by_id(class_id)
@@ -338,7 +338,7 @@ class ClassManagementDialog(QDialog):
             return
             
         color = QColorDialog.getColor(
-            QColor(label_class.color), self, "Sınıf Rengi Seç"
+            QColor(label_class.color), self, self.tr("Select Class Color")
         )
         if color.isValid():
             self._class_manager.update_class(class_id, color=color.name())
@@ -349,7 +349,7 @@ class ClassManagementDialog(QDialog):
         """Seçili sınıfı sil."""
         class_id = self._get_selected_class_id()
         if class_id < 0:
-            QMessageBox.warning(self, "Uyarı", "Lütfen bir sınıf seçin.")
+            QMessageBox.warning(self, self.tr("Warning"), self.tr("Please select a class."))
             return
             
         label_class = self._class_manager.get_by_id(class_id)
@@ -375,10 +375,10 @@ class ClassManagementDialog(QDialog):
         
         if annotation_count > 0:
             result = QMessageBox.warning(
-                self, "Dikkat!",
-                f"'{label_class.name}' sınıfına ait {annotation_count} etiket bulunmaktadır.\n\n"
-                f"Bu sınıfı silmek, TÜM bu etiketlerin de silinmesine neden olacaktır.\n\n"
-                f"Devam etmek istiyor musunuz?",
+                self, self.tr("Warning!"),
+                self.tr("There are {} labels belonging to '{}' class.\n\n"
+                "Deleting this class will also DELETE ALL these labels.\n\n"
+                "Do you want to continue?").format(annotation_count, label_class.name),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )
@@ -386,8 +386,8 @@ class ClassManagementDialog(QDialog):
                 return
         else:
             result = QMessageBox.question(
-                self, "Sınıfı Sil",
-                f"'{label_class.name}' sınıfını silmek istediğinize emin misiniz?",
+                self, self.tr("Delete Class"),
+                self.tr("Are you sure you want to delete '{}' class?").format(label_class.name),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )
@@ -456,8 +456,8 @@ class ClassManagementDialog(QDialog):
         
         if annotation_count > 0:
             QMessageBox.information(
-                self, "Sınıf Silindi",
-                f"'{label_class.name}' sınıfı ve {annotation_count} etiket silindi."
+                self, self.tr("Class Deleted"),
+                self.tr("Class '{}' and {} labels were deleted.").format(label_class.name, annotation_count)
             )
     
     def _on_cell_double_clicked(self, row: int, column: int):

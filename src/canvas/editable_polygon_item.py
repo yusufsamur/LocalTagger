@@ -216,11 +216,12 @@ class EditablePolygonItem(QGraphicsPolygonItem):
         super().mouseDoubleClickEvent(event)
     
     def contextMenuEvent(self, event: QGraphicsSceneContextMenuEvent):
-        """Sağ tık menüsü."""
+        """Context menu."""
+        from PySide6.QtCore import QCoreApplication
         menu = QMenu()
-        change_class_action = menu.addAction("🏷️ Sınıf Değiştir")
+        change_class_action = menu.addAction(QCoreApplication.translate("EditablePolygonItem", "🏷️ Change Class"))
         menu.addSeparator()
-        delete_action = menu.addAction("🗑️ Sil")
+        delete_action = menu.addAction(QCoreApplication.translate("EditablePolygonItem", "🗑️ Delete"))
         
         action = menu.exec(event.screenPos())
         
