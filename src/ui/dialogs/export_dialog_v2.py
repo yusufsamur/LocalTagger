@@ -220,7 +220,7 @@ class ExportWorkerV2(QThread):
                         "images": [],
                         "annotations": [],
                         "categories": [
-                            {"id": cls.id, "name": cls.name, "supercategory": "none"}
+                            {"id": cls.id + 1, "name": cls.name, "supercategory": "none"}  # COCO ID'leri 1'den başlar
                             for cls in self.exporter.class_manager.classes
                         ]
                     }
@@ -349,12 +349,23 @@ class ExportWorkerV2(QThread):
             if annotations is None:
                 return
             
+            # Cutout bölgelerini al (varsa)
+            cutout_regions = []
+            if transform and "cutout" in transform:
+                cutout_regions = transform["cutout"].get("regions", [])
+            
             # Annotation ID (mevcut annotation sayısına göre)
             ann_id = len(coco_data["annotations"]) + 1
             
             # BBox'ları ekle
             for bbox in annotations.bboxes:
                 coords = (bbox.x_center, bbox.y_center, bbox.width, bbox.height)
+                
+                # Cutout kontrolü (%90+ kaplama varsa atla)
+                if cutout_regions:
+                    if self.augmentor.is_bbox_covered_by_cutout(coords, cutout_regions, orig_w, orig_h, 0.9):
+                        continue
+                
                 if transform:
                     coords = self.augmentor.transform_bbox(coords, transform, orig_w, orig_h)
                 if resize_info:
@@ -371,12 +382,99 @@ class ExportWorkerV2(QThread):
                 coco_data["annotations"].append({
                     "id": ann_id,
                     "image_id": image_id,
-                    "category_id": bbox.class_id,
+                    "category_id": bbox.class_id + 1,  # COCO kategorileri 1'den başlar
                     "bbox": [round(x, 2), round(y, 2), round(width, 2), round(height, 2)],
                     "area": round(width * height, 2),
+                    "segmentation": [],  # BBox için boş segmentasyon
                     "iscrowd": 0
                 })
                 ann_id += 1
+            
+            # Polygon'ları ekle (segmentasyon olarak)
+            for polygon in annotations.polygons:
+                if len(polygon.points) < 3:
+                    continue
+                
+                points = polygon.points
+                
+                # Cutout kırpma: Polygon'dan cutout bölgelerini çıkar
+                if cutout_regions:
+                    clipped_polygons = self.augmentor.apply_cutout_to_polygon(
+                        points, cutout_regions, orig_w, orig_h
+                    )
+                else:
+                    clipped_polygons = [points]
+                
+                # Her kırpılmış polygon için ayrı annotation ekle
+                for clipped_points in clipped_polygons:
+                    if len(clipped_points) < 3:
+                        continue
+                    
+                    final_points = clipped_points
+                    if transform:
+                        final_points = self.augmentor.transform_polygon(final_points, transform, orig_w, orig_h)
+                    
+                    # Segmentasyon için düzleştirilmiş koordinat listesi [x1, y1, x2, y2, ...]
+                    seg_points = []
+                    min_x = float('inf')
+                    min_y = float('inf')
+                    max_x = float('-inf')
+                    max_y = float('-inf')
+                    
+                    for px, py in final_points:
+                        # Resize dönüşümü uygula (koordinatlar normalize)
+                        if resize_info:
+                            mode = resize_info.get("mode")
+                            if mode and mode.startswith("fit_"):
+                                scale = resize_info.get("scale", 1.0)
+                                offset = resize_info.get("offset", (0, 0))
+                                px_abs = px * orig_w * scale + offset[0]
+                                py_abs = py * orig_h * scale + offset[1]
+                            elif mode == "fill_crop":
+                                scale = resize_info.get("scale", 1.0)
+                                crop_offset = resize_info.get("crop_offset", (0, 0))
+                                px_abs = px * orig_w * scale - crop_offset[0]
+                                py_abs = py * orig_h * scale - crop_offset[1]
+                            else:
+                                px_abs = px * new_w
+                                py_abs = py * new_h
+                        else:
+                            px_abs = px * new_w
+                            py_abs = py * new_h
+                        
+                        seg_points.extend([round(px_abs, 2), round(py_abs, 2)])
+                        min_x = min(min_x, px_abs)
+                        min_y = min(min_y, py_abs)
+                        max_x = max(max_x, px_abs)
+                        max_y = max(max_y, py_abs)
+                    
+                    # Bounding box hesapla (polygon'dan)
+                    bbox_x = min_x
+                    bbox_y = min_y
+                    bbox_w = max_x - min_x
+                    bbox_h = max_y - min_y
+                    
+                    # Alan hesapla (shoelace formülü)
+                    area = 0.0
+                    n = len(final_points)
+                    for i in range(n):
+                        j = (i + 1) % n
+                        x1, y1 = final_points[i]
+                        x2, y2 = final_points[j]
+                        area += (x1 * new_w) * (y2 * new_h)
+                        area -= (x2 * new_w) * (y1 * new_h)
+                    area = abs(area) / 2.0
+                    
+                    coco_data["annotations"].append({
+                        "id": ann_id,
+                        "image_id": image_id,
+                        "category_id": polygon.class_id + 1,  # COCO kategorileri 1'den başlar
+                        "bbox": [round(bbox_x, 2), round(bbox_y, 2), round(bbox_w, 2), round(bbox_h, 2)],
+                        "area": round(area, 2),
+                        "segmentation": [seg_points],  # Polygon noktaları
+                        "iscrowd": 0
+                    })
+                    ann_id += 1
     
     def _save_coco_json(self, output_dir: Path, splits: dict):
         """COCO JSON dosyalarını kaydet."""
@@ -394,8 +492,20 @@ class ExportWorkerV2(QThread):
     def _save_transformed_labels(self, annotations, transform, resize_info,
                                    output_path, orig_w, orig_h, new_w, new_h):
         lines = []
+        
+        # Cutout bölgelerini al (varsa)
+        cutout_regions = []
+        if transform and "cutout" in transform:
+            cutout_regions = transform["cutout"].get("regions", [])
+        
         for bbox in annotations.bboxes:
             coords = (bbox.x_center, bbox.y_center, bbox.width, bbox.height)
+            
+            # Cutout kontrolü (%90+ kaplama varsa atla)
+            if cutout_regions:
+                if self.augmentor.is_bbox_covered_by_cutout(coords, cutout_regions, orig_w, orig_h, 0.9):
+                    continue  # Bu bbox'ı kaydetme
+            
             if transform:
                 coords = self.augmentor.transform_bbox(coords, transform, orig_w, orig_h)
             if resize_info:
@@ -407,10 +517,27 @@ class ExportWorkerV2(QThread):
         for polygon in annotations.polygons:
             if len(polygon.points) >= 3:
                 points = polygon.points
-                if transform:
-                    points = self.augmentor.transform_polygon(points, transform, orig_w, orig_h)
-                points_str = " ".join(f"{x:.6f} {y:.6f}" for x, y in points)
-                lines.append(f"{polygon.class_id} {points_str}")
+                
+                # Cutout kırpma: Polygon'dan cutout bölgelerini çıkar
+                if cutout_regions:
+                    clipped_polygons = self.augmentor.apply_cutout_to_polygon(
+                        points, cutout_regions, orig_w, orig_h
+                    )
+                    
+                    # Kırpma sonucu birden fazla polygon oluşabilir
+                    for clipped_points in clipped_polygons:
+                        if len(clipped_points) >= 3:
+                            final_points = clipped_points
+                            if transform:
+                                final_points = self.augmentor.transform_polygon(final_points, transform, orig_w, orig_h)
+                            points_str = " ".join(f"{x:.6f} {y:.6f}" for x, y in final_points)
+                            lines.append(f"{polygon.class_id} {points_str}")
+                else:
+                    # Cutout yoksa normal işle
+                    if transform:
+                        points = self.augmentor.transform_polygon(points, transform, orig_w, orig_h)
+                    points_str = " ".join(f"{x:.6f} {y:.6f}" for x, y in points)
+                    lines.append(f"{polygon.class_id} {points_str}")
         
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
@@ -559,7 +686,7 @@ class AugmentationSlider(QWidget):
     valueChanged = Signal()
     
     def __init__(self, name: str, min_val: int, max_val: int, default_val: int, 
-                 suffix: str = "", parent=None):
+                 suffix: str = "", help_text: str = "", parent=None):
         super().__init__(parent)
         self.name = name
         self.suffix = suffix
@@ -570,6 +697,27 @@ class AugmentationSlider(QWidget):
         self.checkbox = QCheckBox(name)
         self.checkbox.setMinimumWidth(130)
         layout.addWidget(self.checkbox)
+        
+        # Yardım ikonu (tooltip ile)
+        if help_text:
+            self.help_label = QLabel("?")
+            self.help_label.setFixedSize(18, 18)
+            self.help_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.help_label.setStyleSheet("""
+                QLabel {
+                    background-color: #555;
+                    color: white;
+                    border-radius: 9px;
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+                QLabel:hover {
+                    background-color: #0078d4;
+                }
+            """)
+            self.help_label.setToolTip(help_text)
+            self.help_label.setCursor(Qt.CursorShape.WhatsThisCursor)
+            layout.addWidget(self.help_label)
         
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(min_val, max_val)
@@ -840,6 +988,13 @@ class ExportWizard(QDialog):
         
         # Parlaklık - Roboflow tarzı Brighten/Darken checkboxları
         brightness_group = QGroupBox("Parlaklık")
+        brightness_group.setToolTip(
+            "Parlaklık: Görselin aydınlık/karanlık seviyesini ayarlar.\n\n"
+            "• Brighten: Görseli aydınlatır\n"
+            "• Darken: Görseli karartır\n"
+            "• Değer %: Efekt yoğunluğu\n\n"
+            "Farklı ışık koşullarında genelleme için kullanılır."
+        )
         brightness_layout = QVBoxLayout(brightness_group)
         
         # Sürgü (0-99%)
@@ -865,14 +1020,35 @@ class ExportWizard(QDialog):
         
         aug_layout.addWidget(brightness_group)
         
-        self.contrast_slider = AugmentationSlider("Kontrast", 50, 150, 120, "%")
+        self.contrast_slider = AugmentationSlider(
+            "Kontrast", 50, 150, 120, "%",
+            help_text="Kontrast: Açık ve koyu tonlar arasındaki farkı ayarlar.\n\n"
+                      "• 100%: Orijinal kontrast\n"
+                      "• <100%: Düşük kontrast (daha soluk)\n"
+                      "• >100%: Yüksek kontrast (daha keskin)\n\n"
+                      "Farklı aydınlatma koşullarında genelleme için kullanılır."
+        )
         aug_layout.addWidget(self.contrast_slider)
         
-        self.rotation_slider = AugmentationSlider("Döndürme", 0, 45, 15, "°")
+        self.rotation_slider = AugmentationSlider(
+            "Döndürme", 0, 45, 15, "°",
+            help_text="Döndürme (Rotation): Görseli rastgele açılarla döndürür.\n\n"
+                      "• 0°: Döndürme yok\n"
+                      "• 15°: ±15° aralığında döndürme\n"
+                      "• 45°: ±45° aralığında döndürme\n\n"
+                      "Nesnelerin farklı açılardan görünmesini öğretir."
+        )
         aug_layout.addWidget(self.rotation_slider)
         
         # Flip (yüzde kontrolü ile)
         flip_group = QGroupBox("Çevirme")
+        flip_group.setToolTip(
+            "Çevirme (Flip): Görseli ayna gibi yansıtır.\n\n"
+            "• Yatay: Sol-sağ yansıtma\n"
+            "• Dikey: Üst-alt yansıtma\n"
+            "• Yüzde: Uygulanma olasılığı\n\n"
+            "Simetrik nesnelerde ve farklı bakış açılarında genelleme sağlar."
+        )
         flip_group.setCheckable(True)
         flip_group.setChecked(False)
         flip_layout = QFormLayout(flip_group)
@@ -893,17 +1069,37 @@ class ExportWizard(QDialog):
         
         aug_layout.addWidget(flip_group)
         
-        self.blur_slider = AugmentationSlider("Blur", 0, 50, 15, "")
+        self.blur_slider = AugmentationSlider(
+            "Blur", 0, 50, 15, "",
+            help_text="Blur (Bulanıklık): Görsele Gaussian bulanıklık ekler.\n\n"
+                      "Birim: Kernel boyutu (piksel)\n\n"
+                      "Odak dışı veya hareketli nesnelerle başa çıkmayı öğretir."
+        )
         aug_layout.addWidget(self.blur_slider)
         
-        self.noise_slider = AugmentationSlider("Gürültü", 0, 50, 10, "")
+        self.noise_slider = AugmentationSlider(
+            "Gürültü", 0, 50, 10, "",
+            help_text="Gürültü (Noise): Görsele rastgele piksel gürültüsü ekler.\n\n"
+                      "Birim: Standart sapma (sigma)\n"
+                      "Piksel değerlerine ±sigma kadar rastgele ekleme yapılır.\n\n"
+                      "Düşük kaliteli veya sensör gürültülü kameralarda genelleme için."
+        )
         aug_layout.addWidget(self.noise_slider)
         
-        self.hue_slider = AugmentationSlider("Renk Tonu", -30, 30, 10, "°")
+        self.hue_slider = AugmentationSlider(
+            "Renk Tonu", -30, 30, 10, "°",
+            help_text="Renk Tonu (Hue): Renk spektrumunda kaydırma yapar.\n\n"
+                      "Farklı aydınlatma renk sıcaklıklarına uyum sağlar."
+        )
         aug_layout.addWidget(self.hue_slider)
         
         # Grayscale (yüzde kontrolü ile)
         grayscale_group = QGroupBox("Gri Tonlama")
+        grayscale_group.setToolTip(
+            "Gri Tonlama (Grayscale): Görseli siyah-beyaz yapar.\n\n"
+            "• Oran %: Gri tonlamaya dönüştürülecek görsel yüzdesi\n\n"
+            "Renk bilgisi olmadan da nesne tanıma öğretir."
+        )
         grayscale_group.setCheckable(True)
         grayscale_group.setChecked(False)
         grayscale_layout = QFormLayout(grayscale_group)
@@ -919,11 +1115,30 @@ class ExportWizard(QDialog):
         aug_layout.addWidget(grayscale_group)
         
         # YENİ: Exposure
-        self.exposure_slider = AugmentationSlider("Pozlama (Exposure)", 50, 200, 150, "%")
+        self.exposure_slider = AugmentationSlider(
+            "Pozlama (Exposure)", 50, 200, 150, "%",
+            help_text="Pozlama (Exposure/Gamma): Işık maruziyetini ayarlar.\n\n"
+                      "• 100%: Orijinal\n"
+                      "• <100%: Az pozlanmış (karanlık)\n"
+                      "• >100%: Çok pozlanmış (aydınlık)\n\n"
+                      "Parlaklıktan farklı olarak renk tonlarını korur."
+        )
         aug_layout.addWidget(self.exposure_slider)
         
         # YENİ: Cutout - Tek checkbox, boyut, adet ve uygulama yüzdesi
         cutout_group = QGroupBox("Cutout")
+        cutout_group.setToolTip(
+            "Cutout: Görsele rastgele siyah kareler ekler.\n\n"
+            "Birim: Görsel boyutunun yüzdesi\n"
+            "• Boyut 10% = 640px görselde 64px kare\n\n"
+            "• Adet: Eklenecek kare sayısı\n"
+            "• Oran %: Uygulanma olasılığı\n\n"
+            "Modelin eksik bilgiyle çalışmasını (occlusion robustness) öğretir.\n\n"
+            "⚠ DİKKAT: YOLOv8 gibi bazı modern modeller, eğitim sırasında \n"
+            "benzer teknikleri (örn: erasing) otomatik uygulayabilir.\n"
+            "Bu işlemi hem burada hem eğitimde yapmak (çift uygulama),\n"
+            "model başarısını olumsuz etkileyebilir."
+        )
         cutout_group.setCheckable(True)
         cutout_group.setChecked(False)
         cutout_layout = QFormLayout(cutout_group)
@@ -950,11 +1165,23 @@ class ExportWizard(QDialog):
         aug_layout.addWidget(cutout_group)
         
         # YENİ: Motion Blur
-        self.motion_blur_slider = AugmentationSlider("Hareket Bulanıklığı", 0, 30, 15, "")
+        self.motion_blur_slider = AugmentationSlider(
+            "Hareket Bulanıklığı", 0, 30, 15, "",
+            help_text="Hareket Bulanıklığı (Motion Blur): Yatay hareket efekti ekler.\n\n"
+                      "Birim: Kernel boyutu (piksel)\n\n"
+                      "Hareketli nesneleri algılamayı öğretir."
+        )
         aug_layout.addWidget(self.motion_blur_slider)
         
         # YENİ: Shear - Tek checkbox, yatay ve dikey
         shear_group = QGroupBox("Shear (Eğiklik)")
+        shear_group.setToolTip(
+            "Shear (Eğiklik): Görseli yatay/dikey olarak eğer.\n\n"
+            "• Yatay: Yatay eğiklik açısı\n"
+            "• Dikey: Dikey eğiklik açısı\n\n"
+            "Perspektif varyasyonu sağlar,\n"
+            "farklı bakış açılarından genelleme öğretir."
+        )
         shear_group.setCheckable(True)
         shear_group.setChecked(False)
         shear_layout = QFormLayout(shear_group)

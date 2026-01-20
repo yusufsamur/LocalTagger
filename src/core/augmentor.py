@@ -281,8 +281,8 @@ class Augmentor:
         if config.cutout_enabled and config.cutout_size > 0 and config.cutout_count > 0:
             apply_cutout = is_preview or random.randint(1, 100) <= config.cutout_apply_percent
             if apply_cutout:
-                result = self._apply_cutout(result, config.cutout_size, config.cutout_count)
-                transform["cutout"] = {"size": config.cutout_size, "count": config.cutout_count}
+                result, cutout_regions = self._apply_cutout(result, config.cutout_size, config.cutout_count)
+                transform["cutout"] = {"size": config.cutout_size, "count": config.cutout_count, "regions": cutout_regions}
         
         # Motion Blur
         if config.motion_blur_enabled and config.motion_blur_value > 0:
@@ -494,16 +494,21 @@ class Augmentor:
         table = np.array([np.clip(pow(i / 255.0, 1.0 / gamma) * 255.0, 0, 255) for i in range(256)]).astype("uint8")
         return cv2.LUT(image, table)
     
-    def _apply_cutout(self, image: np.ndarray, size_percent: int, count: int) -> np.ndarray:
-        """Birden fazla rastgele kare cutout (siyah kare) uygula."""
+    def _apply_cutout(self, image: np.ndarray, size_percent: int, count: int) -> Tuple[np.ndarray, List[Tuple[int, int, int, int]]]:
+        """Birden fazla rastgele kare cutout (siyah kare) uygula.
+        
+        Returns:
+            (result_image, cutout_regions) - cutout_regions: [(x1, y1, x2, y2), ...]
+        """
         h, w = image.shape[:2]
         result = image.copy()
+        cutout_regions = []
         
         # Kare cutout boyutu (min boyutu baz al)
         cut_size = int(min(h, w) * size_percent / 100)
         
         if cut_size <= 0:
-            return result
+            return result, cutout_regions
         
         # Belirtilen sayıda rastgele kare cutout ekle
         for _ in range(count):
@@ -512,8 +517,9 @@ class Augmentor:
             y2 = min(y1 + cut_size, h)
             x2 = min(x1 + cut_size, w)
             result[y1:y2, x1:x2] = 0  # Siyah kare
+            cutout_regions.append((x1, y1, x2, y2))
         
-        return result
+        return result, cutout_regions
     
     def _apply_motion_blur(self, image: np.ndarray, kernel_size: int) -> np.ndarray:
         """Motion blur uygula (yatay hareket bulanıklığı)."""
@@ -915,3 +921,160 @@ class Augmentor:
             return (px / new_w, py / new_h, pw / new_w, ph / new_h)
         
         return bbox
+    
+    def is_bbox_covered_by_cutout(
+        self,
+        bbox: Tuple[float, float, float, float],
+        cutout_regions: List[Tuple[int, int, int, int]],
+        img_w: int,
+        img_h: int,
+        threshold: float = 0.9
+    ) -> bool:
+        """
+        BBox'ın cutout tarafından belirli oranda kapatılıp kapatılmadığını kontrol eder.
+        
+        Args:
+            bbox: (x_center, y_center, width, height) normalize
+            cutout_regions: [(x1, y1, x2, y2), ...] piksel koordinatları
+            img_w, img_h: görsel boyutları
+            threshold: örtüşme eşiği (0.9 = %90)
+            
+        Returns:
+            True eğer bbox'ın threshold'dan fazlası cutout ile kaplanmışsa
+        """
+        if not cutout_regions:
+            return False
+        
+        x_c, y_c, w, h = bbox
+        
+        # BBox'ı piksel koordinatlarına çevir
+        bbox_x1 = (x_c - w/2) * img_w
+        bbox_y1 = (y_c - h/2) * img_h
+        bbox_x2 = (x_c + w/2) * img_w
+        bbox_y2 = (y_c + h/2) * img_h
+        
+        bbox_area = (bbox_x2 - bbox_x1) * (bbox_y2 - bbox_y1)
+        if bbox_area <= 0:
+            return True  # Geçersiz bbox, sil
+        
+        # Tüm cutout bölgeleriyle toplam örtüşmeyi hesapla
+        total_covered = 0.0
+        for cut_x1, cut_y1, cut_x2, cut_y2 in cutout_regions:
+            # Kesişim alanını hesapla
+            inter_x1 = max(bbox_x1, cut_x1)
+            inter_y1 = max(bbox_y1, cut_y1)
+            inter_x2 = min(bbox_x2, cut_x2)
+            inter_y2 = min(bbox_y2, cut_y2)
+            
+            if inter_x2 > inter_x1 and inter_y2 > inter_y1:
+                inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+                total_covered += inter_area
+        
+        coverage_ratio = total_covered / bbox_area
+        return coverage_ratio >= threshold
+    
+    def is_polygon_covered_by_cutout(
+        self,
+        points: List[Tuple[float, float]],
+        cutout_regions: List[Tuple[int, int, int, int]],
+        img_w: int,
+        img_h: int,
+        threshold: float = 0.9
+    ) -> bool:
+        """
+        Polygon'ın cutout tarafından belirli oranda kapatılıp kapatılmadığını kontrol eder.
+        
+        Basitleştirilmiş yaklaşım: Polygon'un bounding box'ını kullanır.
+        
+        Args:
+            points: [(x, y), ...] normalize koordinatlar
+            cutout_regions: [(x1, y1, x2, y2), ...] piksel koordinatları
+            img_w, img_h: görsel boyutları
+            threshold: örtüşme eşiği (0.9 = %90)
+            
+        Returns:
+            True eğer polygon'ın threshold'dan fazlası cutout ile kaplanmışsa
+        """
+        if not cutout_regions or len(points) < 3:
+            return False
+        
+        # Polygon'un bounding box'ını bul
+        xs = [p[0] for p in points]
+        ys = [p[1] for p in points]
+        
+        x_min, x_max = min(xs), max(xs)
+        y_min, y_max = min(ys), max(ys)
+        
+        # Bounding box olarak kontrol et
+        x_c = (x_min + x_max) / 2
+        y_c = (y_min + y_max) / 2
+        w = x_max - x_min
+        h = y_max - y_min
+        
+        return self.is_bbox_covered_by_cutout(
+            (x_c, y_c, w, h), cutout_regions, img_w, img_h, threshold
+        )
+    
+    def apply_cutout_to_polygon(
+        self,
+        polygon_points: List[Tuple[float, float]],
+        cutout_regions: List[Tuple[int, int, int, int]],
+        img_w: int,
+        img_h: int,
+        min_area: int = 100
+    ) -> List[List[Tuple[float, float]]]:
+        """
+        Polygon'dan cutout bölgelerini çıkararak yeni polygon(lar) oluşturur.
+        
+        Maske tabanlı yaklaşım:
+        1. Polygon'u maske olarak çiz (beyaz)
+        2. Cutout bölgelerini maske üzerinde sil (siyah)
+        3. findContours ile yeni polygon'ları elde et
+        
+        Args:
+            polygon_points: [(x, y), ...] normalize koordinatlar (0-1)
+            cutout_regions: [(x1, y1, x2, y2), ...] piksel koordinatları
+            img_w, img_h: görsel boyutları
+            min_area: minimum polygon alanı (piksel²) - küçük parçalar filtrelenir
+            
+        Returns:
+            List of polygons - her biri normalize koordinatlar [(x, y), ...]
+            Cutout sonucu polygon bölünebilir, bu yüzden liste döner
+        """
+        if not cutout_regions or len(polygon_points) < 3:
+            return [polygon_points]  # Değişiklik yok
+        
+        # 1. Boş maske oluştur
+        mask = np.zeros((img_h, img_w), dtype=np.uint8)
+        
+        # 2. Polygon'u piksel koordinatlarına çevir ve maske üzerine çiz
+        pts = np.array([
+            [int(x * img_w), int(y * img_h)] for x, y in polygon_points
+        ], dtype=np.int32)
+        cv2.fillPoly(mask, [pts], 255)
+        
+        # 3. Cutout bölgelerini maskeye siyah olarak çiz (silme)
+        for cut_x1, cut_y1, cut_x2, cut_y2 in cutout_regions:
+            cv2.rectangle(mask, (cut_x1, cut_y1), (cut_x2, cut_y2), 0, thickness=-1)
+        
+        # 4. Maskeden yeni konturları oku
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        new_polygons = []
+        for cnt in contours:
+            # Küçük parçaları filtrele
+            if cv2.contourArea(cnt) < min_area:
+                continue
+            
+            # Kontur noktalarını normalize koordinatlara çevir
+            reshaped = cnt.reshape(-1, 2)
+            normalized_points = [
+                (float(x) / img_w, float(y) / img_h) 
+                for x, y in reshaped
+            ]
+            
+            if len(normalized_points) >= 3:
+                new_polygons.append(normalized_points)
+        
+        # Eğer hiç polygon kalmadıysa boş liste döndür
+        return new_polygons

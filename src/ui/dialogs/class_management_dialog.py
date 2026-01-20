@@ -47,11 +47,13 @@ class ClassManagementDialog(QDialog):
         
         # Tablo
         self.table = QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["ID", "Sınıf Adı", "Renk"])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["ID", "Sınıf Adı", "Renk", "Etiket", "Fotoğraf"])
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -98,6 +100,9 @@ class ClassManagementDialog(QDialog):
         """Tabloyu yenile."""
         self.table.setRowCount(0)
         
+        # Sınıf başına etiket ve fotoğraf sayısını hesapla
+        class_counts, class_images = self._count_annotations_per_class()
+        
         for label_class in self._class_manager.classes:
             row = self.table.rowCount()
             self.table.insertRow(row)
@@ -117,6 +122,49 @@ class ClassManagementDialog(QDialog):
             color_item.setIcon(self._create_color_icon(label_class.color, 24))
             color_item.setText(label_class.color)
             self.table.setItem(row, 2, color_item)
+            
+            # Etiket sayısı
+            count = class_counts.get(label_class.id, 0)
+            count_item = QTableWidgetItem(str(count))
+            count_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if count == 0:
+                count_item.setForeground(QColor("#888888"))
+            self.table.setItem(row, 3, count_item)
+            
+            # Fotoğraf sayısı
+            img_count = class_images.get(label_class.id, 0)
+            img_item = QTableWidgetItem(str(img_count))
+            img_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if img_count == 0:
+                img_item.setForeground(QColor("#888888"))
+            self.table.setItem(row, 4, img_item)
+    
+    def _count_annotations_per_class(self) -> tuple:
+        """Her sınıf için toplam etiket ve fotoğraf sayısını hesapla.
+        
+        Returns:
+            (counts, images) - counts: {class_id: etiket_sayısı}, images: {class_id: fotoğraf_sayısı}
+        """
+        counts = {}  # class_id -> toplam etiket sayısı
+        images = {}  # class_id -> kaç fotoğrafta var
+        
+        if self._annotation_manager:
+            for image_path, annotations in self._annotation_manager._annotations.items():
+                # Bu fotoğraftaki sınıfları takip et
+                classes_in_image = set()
+                
+                for bbox in annotations.bboxes:
+                    counts[bbox.class_id] = counts.get(bbox.class_id, 0) + 1
+                    classes_in_image.add(bbox.class_id)
+                for polygon in annotations.polygons:
+                    counts[polygon.class_id] = counts.get(polygon.class_id, 0) + 1
+                    classes_in_image.add(polygon.class_id)
+                
+                # Her sınıf için fotoğraf sayısını artır
+                for class_id in classes_in_image:
+                    images[class_id] = images.get(class_id, 0) + 1
+        
+        return counts, images
             
     def _create_color_icon(self, color_hex: str, size: int = 16) -> QIcon:
         """Renk ikonu oluştur."""
@@ -310,20 +358,26 @@ class ClassManagementDialog(QDialog):
         
         # Eğer bu sınıfa ait etiket varsa uyar
         annotation_count = 0
+        affected_images = []
         if self._annotation_manager:
             for image_path, annotations in self._annotation_manager._annotations.items():
+                has_affected = False
                 for bbox in annotations.bboxes:
                     if bbox.class_id == class_id:
                         annotation_count += 1
+                        has_affected = True
                 for polygon in annotations.polygons:
                     if polygon.class_id == class_id:
                         annotation_count += 1
+                        has_affected = True
+                if has_affected:
+                    affected_images.append(image_path)
         
         if annotation_count > 0:
             result = QMessageBox.warning(
                 self, "Dikkat!",
                 f"'{label_class.name}' sınıfına ait {annotation_count} etiket bulunmaktadır.\n\n"
-                f"Bu sınıfı silmek, bu etiketlerin geçersiz hale gelmesine neden olacaktır.\n\n"
+                f"Bu sınıfı silmek, TÜM bu etiketlerin de silinmesine neden olacaktır.\n\n"
                 f"Devam etmek istiyor musunuz?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
@@ -340,9 +394,71 @@ class ClassManagementDialog(QDialog):
             if result != QMessageBox.StandardButton.Yes:
                 return
         
+        # Bu sınıfa ait tüm etiketleri sil
+        if self._annotation_manager and annotation_count > 0:
+            from pathlib import Path
+            
+            for image_path in affected_images:
+                annotations = self._annotation_manager._annotations.get(image_path)
+                if not annotations:
+                    continue
+                
+                # Bu sınıfa ait bbox'ları sil (tersten sil ki indeksler kaymasın)
+                for i in range(len(annotations.bboxes) - 1, -1, -1):
+                    if annotations.bboxes[i].class_id == class_id:
+                        annotations.bboxes.pop(i)
+                
+                # Bu sınıfa ait polygon'ları sil
+                for i in range(len(annotations.polygons) - 1, -1, -1):
+                    if annotations.polygons[i].class_id == class_id:
+                        annotations.polygons.pop(i)
+                
+                # Değişiklikleri diske kaydet
+                image_p = Path(image_path)
+                parent = image_p.parent
+                if parent.name.lower() == "images":
+                    labels_dir = parent.parent / "labels"
+                else:
+                    labels_dir = parent / "labels"
+                
+                labels_dir.mkdir(parents=True, exist_ok=True)
+                self._annotation_manager.save_yolo(image_path, labels_dir)
+        
+        # Sınıfı bellekten sil
         self._class_manager.remove_class(class_id)
+        
+        # classes.txt dosyasını güncelle
+        labels_dir = None
+        if affected_images:
+            from pathlib import Path
+            first_image = Path(affected_images[0])
+            parent = first_image.parent
+            if parent.name.lower() == "images":
+                labels_dir = parent.parent / "labels"
+            else:
+                labels_dir = parent / "labels"
+        elif self._annotation_manager and self._annotation_manager._annotations:
+            # Etiketsiz sınıf siliniyorsa, herhangi bir görsel yolunu kullan
+            from pathlib import Path
+            first_image = Path(list(self._annotation_manager._annotations.keys())[0])
+            parent = first_image.parent
+            if parent.name.lower() == "images":
+                labels_dir = parent.parent / "labels"
+            else:
+                labels_dir = parent / "labels"
+        
+        if labels_dir:
+            labels_dir.mkdir(parents=True, exist_ok=True)
+            self._class_manager.save_to_file(labels_dir / "classes.txt")
+        
         self._refresh_table()
         self.classes_changed.emit()
+        
+        if annotation_count > 0:
+            QMessageBox.information(
+                self, "Sınıf Silindi",
+                f"'{label_class.name}' sınıfı ve {annotation_count} etiket silindi."
+            )
     
     def _on_cell_double_clicked(self, row: int, column: int):
         """Hücreye çift tıklandığında."""

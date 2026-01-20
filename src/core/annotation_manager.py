@@ -26,6 +26,8 @@ class AnnotationManager:
         self._dirty: set = set()  # Kaydedilmemiş değişiklikler
         # Undo stack: [(image_path, action_type, data)]
         self._undo_stack: List[tuple] = []
+        # Redo stack: [(image_path, action_type, data)]
+        self._redo_stack: List[tuple] = []
         
     def get_annotations(self, image_path: str | Path) -> ImageAnnotations:
         """
@@ -106,6 +108,8 @@ class AnnotationManager:
         # Stack limitini aş
         if len(self._undo_stack) > self.MAX_UNDO_STACK:
             self._undo_stack.pop(0)
+        # Yeni işlem eklendiğinde redo stack'i temizle
+        self._redo_stack.clear()
     
     def undo(self) -> tuple:
         """
@@ -118,26 +122,42 @@ class AnnotationManager:
         image_path, action, data = self._undo_stack.pop()
         annotations = self.get_annotations(image_path)
         
+        # Redo için ters işlemi kaydet
+        redo_action = None
+        redo_data = None
+        
         if action == 'add_bbox':
             # Eklenen bbox'ı sil
             index = data
             if 0 <= index < len(annotations.bboxes):
-                annotations.bboxes.pop(index)
+                removed = annotations.bboxes.pop(index)
+                redo_action = 'remove_bbox'
+                redo_data = (index, removed)
         elif action == 'add_polygon':
             # Eklenen polygon'u sil
             index = data
             if 0 <= index < len(annotations.polygons):
-                annotations.polygons.pop(index)
+                removed = annotations.polygons.pop(index)
+                redo_action = 'remove_polygon'
+                redo_data = (index, removed)
         elif action == 'remove_bbox':
             # Silinen bbox'ı geri ekle
             index, bbox = data
             annotations.bboxes.insert(index, bbox)
+            redo_action = 'add_bbox'
+            redo_data = index
         elif action == 'remove_polygon':
             # Silinen polygon'u geri ekle
             index, polygon = data
             annotations.polygons.insert(index, polygon)
+            redo_action = 'add_polygon'
+            redo_data = index
         else:
             return (image_path, False)
+        
+        # Redo stack'e ekle
+        if redo_action:
+            self._redo_stack.append((image_path, redo_action, redo_data))
         
         self._mark_dirty(image_path)
         return (image_path, True)
@@ -145,6 +165,61 @@ class AnnotationManager:
     def can_undo(self) -> bool:
         """Geri alınabilecek işlem var mı?"""
         return len(self._undo_stack) > 0
+    
+    def redo(self) -> tuple:
+        """
+        Son geri alınan işlemi yeniden yap.
+        Returns: (image_path, success) tuple
+        """
+        if not self._redo_stack:
+            return (None, False)
+        
+        image_path, action, data = self._redo_stack.pop()
+        annotations = self.get_annotations(image_path)
+        
+        # Undo için kaydet (redo stack'i etkilememeli)
+        undo_action = None
+        undo_data = None
+        
+        if action == 'add_bbox':
+            # Eklenen bbox'ı sil
+            index = data
+            if 0 <= index < len(annotations.bboxes):
+                removed = annotations.bboxes.pop(index)
+                undo_action = 'remove_bbox'
+                undo_data = (index, removed)
+        elif action == 'add_polygon':
+            # Eklenen polygon'u sil
+            index = data
+            if 0 <= index < len(annotations.polygons):
+                removed = annotations.polygons.pop(index)
+                undo_action = 'remove_polygon'
+                undo_data = (index, removed)
+        elif action == 'remove_bbox':
+            # Silinen bbox'ı geri ekle
+            index, bbox = data
+            annotations.bboxes.insert(index, bbox)
+            undo_action = 'add_bbox'
+            undo_data = index
+        elif action == 'remove_polygon':
+            # Silinen polygon'u geri ekle
+            index, polygon = data
+            annotations.polygons.insert(index, polygon)
+            undo_action = 'add_polygon'
+            undo_data = index
+        else:
+            return (image_path, False)
+        
+        # Undo stack'e ekle (redo_stack'i temizlemeden)
+        if undo_action:
+            self._undo_stack.append((image_path, undo_action, undo_data))
+        
+        self._mark_dirty(image_path)
+        return (image_path, True)
+    
+    def can_redo(self) -> bool:
+        """İleri alınabilecek işlem var mı?"""
+        return len(self._redo_stack) > 0
         
     def is_dirty(self, image_path: str | Path = None) -> bool:
         """Kaydedilmemiş değişiklik var mı?"""

@@ -41,6 +41,9 @@ class LocalFlowApp(QMainWindow):
         # Bekleyen bbox (popup sınıf seçimi için)
         self._pending_bbox = None  # (x1, y1, x2, y2)
         
+        # Seçili annotation takibi (kopyala/yapıştır için)
+        self._selected_annotation = None  # (type: "bbox"|"polygon", index)
+        
         # Aktif popup takibi (aynı anda sadece 1 popup)
         self._active_popup = None
         
@@ -120,8 +123,16 @@ class LocalFlowApp(QMainWindow):
         QShortcut(QKeySequence("T"), self, self._toggle_magic_pixel)  # Magic Pixel toggle
         QShortcut(QKeySequence("Y"), self, self._toggle_magic_box)  # Magic Box toggle
         
-        # Undo
+        # Undo/Redo
         QShortcut(QKeySequence("Ctrl+Z"), self, self._undo)
+        QShortcut(QKeySequence("Ctrl+Y"), self, self._redo)
+        
+        # Kopyala/Yapıştır
+        QShortcut(QKeySequence("Ctrl+C"), self, self._copy_annotations)
+        QShortcut(QKeySequence("Ctrl+V"), self, self._paste_annotations)
+        
+        # Toplu silme
+        QShortcut(QKeySequence("Ctrl+Shift+Delete"), self, self._delete_all_annotations)
         
     def _connect_signals(self):
         canvas = self.main_window.canvas_view
@@ -153,6 +164,9 @@ class LocalFlowApp(QMainWindow):
         canvas.sam_click_requested.connect(self._on_sam_click)
         canvas.sam_box_requested.connect(self._on_sam_box)  # Polygon+AI için bbox→polygon
         self.main_window.sam_toggled.connect(self._on_sam_toggled)
+        
+        # Annotation list widget sinyalleri
+        self.main_window.annotation_list_widget.clear_all_requested.connect(self._delete_all_annotations)
     
     def _on_image_changed(self, image_path: str):
         """Görsel değiştiğinde - açık popup'ları kapat ve SAM encoding başlat."""
@@ -739,6 +753,147 @@ class LocalFlowApp(QMainWindow):
         else:
             self.statusbar.showMessage("Geri alma başarısız")
     
+    def _redo(self):
+        """Son geri alınan işlemi yeniden yap."""
+        if not self.annotation_manager.can_redo():
+            self.statusbar.showMessage("İleri alınacak işlem yok")
+            return
+        
+        image_path, success = self.annotation_manager.redo()
+        if success:
+            # Kaydet
+            self.main_window._save_current_annotations()
+            # Canvas'ı yenile
+            self.main_window.refresh_canvas()
+            self.main_window.annotation_list_widget.refresh()
+            self.statusbar.showMessage("↪️ Yeniden yapıldı")
+        else:
+            self.statusbar.showMessage("İleri alma başarısız")
+    
+    def _copy_annotations(self):
+        """Seçili etiketi veya tüm etiketleri kopyala.
+        
+        Canvas'ta seçili bir bbox/polygon varsa sadece onu kopyalar.
+        Seçili bir şey yoksa tüm etiketleri kopyalar.
+        """
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            self.statusbar.showMessage("Kopyalanacak görsel yok!")
+            return
+        
+        import copy
+        
+        # Canvas'tan seçili item'ı bul
+        canvas = self.main_window.canvas_view
+        scene = canvas.scene
+        
+        selected_items = scene.selectedItems()
+        
+        if selected_items:
+            # Seçili item varsa sadece onu kopyala
+            from canvas.editable_rect_item import EditableRectItem
+            from canvas.editable_polygon_item import EditablePolygonItem
+            
+            self._clipboard_bboxes = []
+            self._clipboard_polygons = []
+            
+            for item in selected_items:
+                if isinstance(item, EditableRectItem):
+                    # BBox indeksini bul
+                    index = getattr(item, 'index', -1)
+                    annotations = self.annotation_manager.get_annotations(image_path)
+                    if 0 <= index < len(annotations.bboxes):
+                        self._clipboard_bboxes.append(copy.deepcopy(annotations.bboxes[index]))
+                elif isinstance(item, EditablePolygonItem):
+                    # Polygon indeksini bul
+                    index = getattr(item, 'index', -1)
+                    annotations = self.annotation_manager.get_annotations(image_path)
+                    if 0 <= index < len(annotations.polygons):
+                        self._clipboard_polygons.append(copy.deepcopy(annotations.polygons[index]))
+            
+            total = len(self._clipboard_bboxes) + len(self._clipboard_polygons)
+            if total > 0:
+                self.statusbar.showMessage(f"📋 {total} seçili etiket kopyalandı")
+            else:
+                self.statusbar.showMessage("Seçili etiket bulunamadı")
+        else:
+            # Hiçbir şey seçili değilse uyarı göster
+            self.statusbar.showMessage("Kopyalamak için önce bir etiket seçin")
+    
+    def _paste_annotations(self):
+        """Kopyalanan etiketleri mevcut görsele yapıştır."""
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            self.statusbar.showMessage("Yapıştırılacak görsel yok!")
+            return
+        
+        # Clipboard kontrolü
+        bboxes = getattr(self, '_clipboard_bboxes', [])
+        polygons = getattr(self, '_clipboard_polygons', [])
+        
+        if not bboxes and not polygons:
+            self.statusbar.showMessage("Yapıştırılacak etiket yok (önce Ctrl+C ile kopyalayın)")
+            return
+        
+        # Offset değeri (%2 sağ-aşağı kaydırma)
+        OFFSET = 0.02
+        
+        # Etiketleri ekle (offset ile)
+        import copy
+        for bbox in bboxes:
+            new_bbox = copy.deepcopy(bbox)
+            # Sağ alt tarafa kaydır
+            new_bbox.x_center = min(1.0, new_bbox.x_center + OFFSET)
+            new_bbox.y_center = min(1.0, new_bbox.y_center + OFFSET)
+            self.annotation_manager.add_bbox(image_path, new_bbox)
+        
+        for polygon in polygons:
+            new_polygon = copy.deepcopy(polygon)
+            # Tüm noktaları kaydır
+            new_polygon.points = [
+                (min(1.0, x + OFFSET), min(1.0, y + OFFSET))
+                for x, y in new_polygon.points
+            ]
+            self.annotation_manager.add_polygon(image_path, new_polygon)
+        
+        # Kaydet ve yenile
+        self.main_window._save_current_annotations()
+        self.main_window.refresh_canvas()
+        self.main_window.annotation_list_widget.refresh()
+        
+        total = len(bboxes) + len(polygons)
+        self.statusbar.showMessage(f"📋 {total} etiket yapıştırıldı")
+    
+    def _delete_all_annotations(self):
+        """Mevcut görseldeki tüm etiketleri sil."""
+        image_path = self.main_window.get_current_image_path()
+        if not image_path:
+            self.statusbar.showMessage("Silinecek görsel yok!")
+            return
+        
+        annotations = self.annotation_manager.get_annotations(image_path)
+        total = len(annotations.bboxes) + len(annotations.polygons)
+        
+        if total == 0:
+            self.statusbar.showMessage("Silinecek etiket yok")
+            return
+        
+        # Onay al
+        result = QMessageBox.question(
+            self, "Tümünü Sil",
+            f"Bu görseldeki {total} etiketi silmek istediğinize emin misiniz?\n\n"
+            "Bu işlem geri alınamaz!",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if result == QMessageBox.StandardButton.Yes:
+            self.annotation_manager.clear_annotations(image_path)
+            self.main_window._save_current_annotations()
+            self.main_window.refresh_canvas()
+            self.main_window.annotation_list_widget.refresh()
+            self.statusbar.showMessage(f"🗑️ {total} etiket silindi")
+    
     # ─────────────────────────────────────────────────────────────────
     # Kayıt İşlemleri
     # ─────────────────────────────────────────────────────────────────
@@ -962,6 +1117,9 @@ class LocalFlowApp(QMainWindow):
             self.main_window.populate_file_list(self.project.image_files)
             self.main_window.file_list.setCurrentRow(0)
             
+            # 4. Tüm etiketleri preload et (istatistikler için)
+            self._preload_all_annotations(labels_dir)
+            
             class_count = self.class_manager.count
             self.statusbar.showMessage(f"📁 {count} görsel, {class_count} sınıf yüklendi")
         else:
@@ -1063,6 +1221,69 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage(
                 f"🔍 {len(discovered_ids)} sınıf keşfedildi (classes.txt/data.yaml bulunamadı)"
             )
+    
+    def _preload_all_annotations(self, labels_dir: Path):
+        """Tüm etiket dosyalarını preload et (istatistikler için).
+        
+        Bu fonksiyon tüm .txt dosyalarını okuyarak annotation_manager'a yükler,
+        böylece sınıf istatistikleri başlangıçtan itibaren doğru gösterilir.
+        """
+        import cv2
+        import numpy as np
+        from PySide6.QtWidgets import QApplication
+        
+        if not labels_dir.exists():
+            return
+        
+        self.statusbar.showMessage("📊 Etiketler yükleniyor...")
+        QApplication.processEvents()
+        
+        loaded_count = 0
+        txt_files = list(labels_dir.glob("*.txt"))
+        total_files = len(txt_files)
+        
+        for txt_path in txt_files:
+            if txt_path.name == "classes.txt":
+                continue
+            
+            loaded_count += 1
+            
+            # Her 50 dosyada bir UI güncelle
+            if loaded_count % 50 == 0:
+                self.statusbar.showMessage(f"📊 Etiketler yükleniyor... {loaded_count}/{total_files}")
+                QApplication.processEvents()
+            
+            # Eşleşen görsel dosyasını bul
+            image_path = None
+            for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.webp']:
+                potential_path = txt_path.parent.parent / "images" / f"{txt_path.stem}{ext}"
+                if potential_path.exists():
+                    image_path = potential_path
+                    break
+                # Aynı klasörde olabilir
+                potential_path = txt_path.parent / f"{txt_path.stem}{ext}"
+                if potential_path.exists():
+                    image_path = potential_path
+                    break
+            
+            if not image_path:
+                # Proje dosyalarından bul
+                for img_file in self.project.image_files:
+                    if img_file.stem == txt_path.stem:
+                        image_path = img_file
+                        break
+            
+            if not image_path:
+                continue
+            
+            key = str(image_path)
+            
+            # Görsel boyutlarını al (eğer henüz yüklenmemişse varsayılan değer kullan)
+            # Etiketler normalize olduğu için boyut kritik değil, varsayılan kullan
+            w, h = 1920, 1080  # Varsayılan boyut (normalize koordinatlar için önemsiz)
+            
+            # Etiketi yükle
+            self.annotation_manager._load_from_path(key, txt_path, w, h)
             
     def _load_files(self, image_files: list):
         self.project.image_files = sorted(image_files)

@@ -25,6 +25,7 @@ class AnnotationListWidget(QWidget):
     # Sinyaller
     annotation_selected = Signal(str, int)  # (type: "bbox" | "polygon", index)
     annotation_deleted = Signal(str, int)   # (type, index)
+    clear_all_requested = Signal()          # Tümünü sil isteği
     
     def __init__(self, annotation_manager: AnnotationManager, 
                  class_manager: ClassManager, parent=None):
@@ -147,7 +148,6 @@ class AnnotationListWidget(QWidget):
         return QIcon(pixmap)
                 
     def _on_clear_clicked(self):
-        """Tüm etiketleri temizle."""
+        """Tüm etiketleri temizle sinyali gönder."""
         if self._current_image:
-            self._annotation_manager.clear_annotations(self._current_image)
-            self.refresh()
+            self.clear_all_requested.emit()

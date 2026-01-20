@@ -31,11 +31,28 @@ class ClassManager:
     classes.txt dosyası ile uyumlu çalışır.
     """
     
-    # Varsayılan renk paleti
+    # Varsayılan renk paleti - birbirinden farklı, ayırt edilebilir renkler
     DEFAULT_COLORS = [
-        "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF",
-        "#FF8000", "#8000FF", "#00FF80", "#FF0080", "#80FF00", "#0080FF",
-        "#FF4040", "#40FF40", "#4040FF", "#FFFF40", "#FF40FF", "#40FFFF",
+        "#FF0000",  # Kırmızı
+        "#00FF00",  # Yeşil
+        "#0000FF",  # Mavi
+        "#FFFF00",  # Sarı
+        "#FF00FF",  # Mor
+        "#00FFFF",  # Cyan
+        "#FF8C00",  # Turuncu
+        "#8B00FF",  # Menekşe
+        "#00CED1",  # Turkuaz
+        "#FF1493",  # Pembe
+        "#32CD32",  # Limon Yeşili
+        "#FFD700",  # Altın
+        "#DC143C",  # Crimson
+        "#4169E1",  # Kraliyet Mavi
+        "#228B22",  # Orman Yeşili
+        "#FF6347",  # Domates
+        "#9400D3",  # Koyu Mor
+        "#20B2AA",  # Açık Deniz Yeşili
+        "#F08080",  # Açık Mercan
+        "#6B8E23",  # Zeytin
     ]
     
     def __init__(self):
@@ -230,6 +247,8 @@ class ClassManager:
                 for cls_data in meta.get("classes", []):
                     self._classes.append(LabelClass.from_dict(cls_data))
                 self._next_id = meta.get("next_id", len(self._classes))
+                # Color index'i sınıf sayısına göre güncelle (yeni sınıflar farklı renk alsın)
+                self._color_index = len(self._classes)
                 return
             except (json.JSONDecodeError, KeyError):
                 pass  # JSON hatalı, txt'den yükle
