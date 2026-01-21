@@ -1,4 +1,4 @@
-# LocalTagger - v1.0 Requirements
+# LocalTagger - Requirements
 # ==========================================
 
 # GUI Framework

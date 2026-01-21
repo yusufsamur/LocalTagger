@@ -1,5 +1,5 @@
 """
-Canvas modülü - Tuval ve çizim araçları
+Canvas module - Canvas and drawing tools
 =======================================
 """
 

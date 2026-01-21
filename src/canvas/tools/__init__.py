@@ -1,7 +1,7 @@
 """
-Çizim Araçları
+Drawing Tools
 ==============
-Bounding Box, Polygon ve diğer çizim araçları.
+Bounding Box, Polygon and other drawing tools.
 """
 
 from .base_tool import BaseTool, ToolType
