@@ -60,7 +60,6 @@ Follow these steps to set up LocalTagger on your local machine.
 1.  **Clone the Repository**
     ```bash
     git clone https://github.com/yusufsamur/LocalTagger.git
-    cd LocalTagger
     ```
 
 2.  **Create a Virtual Environment** (Recommended)
