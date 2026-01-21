@@ -50,6 +50,15 @@ Experience the power of AI-assisted annotation:
 
 Follow these steps to set up LocalTagger on your local machine.
 
+### 📥 Download (Recommended for Users)
+
+If you just want to use the application without installing Python/Git:
+1.  Go to the **[Releases Page](https://github.com/yusufsamur/LocalTagger/releases)**.
+2.  Download `LocalTagger.exe`.
+3.  Double-click to run! (No installation required).
+
+### ⚙️ Run from Source (For Developers)
+
 ### Prerequisites
 *   **Python 3.10** or higher
 *   **Git** (for cloning the repository)
