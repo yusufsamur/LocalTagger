@@ -37,11 +37,11 @@
 Experience the power of AI-assisted annotation:
 
 ### Magic Box Segmentation
-![Magic Box Segmentation](src/resources/docs/video.gif)
+![Demo showing Magic Box Segmentation: Drawing a box to automatically segment the object](src/resources/docs/video.gif)
 *Demonstrating segmentation labeling using the Magic Box tool. Draw a box, get a mask.*
 
 ### Precision & Detail
-![Magic Box Zoom](src/resources/docs/video_2.gif)
+![Demo showing Magic Box Zoom: Precision polygon generation from a bounding box](src/resources/docs/video_2.gif)
 *Close-up view showing how drawing a Bounding Box triggers the Magic Box to generate a precise polygon.*
 
 ---
