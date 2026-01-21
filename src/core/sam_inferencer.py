@@ -1,7 +1,7 @@
 """
-SAM Inferencer Modülü
+SAM Inferencer Module
 =====================
-MobileSAM ONNX modelleri ile segmentasyon.
+Segmentation with MobileSAM ONNX models.
 """
 
 import cv2
@@ -12,9 +12,9 @@ from typing import Tuple, List, Optional
 
 class SAMInferencer:
     """
-    MobileSAM ONNX modelleri ile point-to-mask segmentasyon.
+    Point-to-mask segmentation with MobileSAM ONNX models.
     
-    Kullanım:
+    Usage:
         inferencer = SAMInferencer(encoder_path, decoder_path)
         inferencer.load_models()
         inferencer.set_image(image)
@@ -28,8 +28,8 @@ class SAMInferencer:
     def __init__(self, encoder_path: str, decoder_path: str):
         """
         Args:
-            encoder_path: Encoder ONNX model yolu
-            decoder_path: Decoder ONNX model yolu
+            encoder_path: Encoder ONNX model path
+            decoder_path: Decoder ONNX model path
         """
         self.encoder_path = Path(encoder_path)
         self.decoder_path = Path(decoder_path)
@@ -42,22 +42,22 @@ class SAMInferencer:
         
     @property
     def is_loaded(self) -> bool:
-        """Modeller yüklü mü?"""
+        """Are models loaded?"""
         return self._encoder_session is not None and self._decoder_session is not None
     
     @property
     def has_embedding(self) -> bool:
-        """Görsel embedding'i hesaplandı mı?"""
+        """Is image embedding calculated?"""
         return self._image_embedding is not None
     
     def load_models(self):
-        """ONNX model session'larını başlat."""
+        """Start ONNX model sessions."""
         import onnxruntime
         
         if not self.encoder_path.exists():
-            raise FileNotFoundError(f"Encoder model bulunamadı: {self.encoder_path}")
+            raise FileNotFoundError(f"Encoder model not found: {self.encoder_path}")
         if not self.decoder_path.exists():
-            raise FileNotFoundError(f"Decoder model bulunamadı: {self.decoder_path}")
+            raise FileNotFoundError(f"Decoder model not found: {self.decoder_path}")
         
         providers = ['CPUExecutionProvider']
         self._encoder_session = onnxruntime.InferenceSession(
@@ -69,47 +69,47 @@ class SAMInferencer:
     
     def set_image(self, image: np.ndarray):
         """
-        Görsel için embedding hesapla ve cache'le.
+        Calculate and cache embedding for image.
         
         Args:
-            image: BGR formatında numpy array (OpenCV)
+            image: numpy array in BGR format (OpenCV)
         """
         if not self.is_loaded:
-            raise RuntimeError("Modeller yüklenmedi! Önce load_models() çağırın.")
+            raise RuntimeError("Models not loaded! Call load_models() first.")
         
         self._original_size = (image.shape[0], image.shape[1])  # (H, W)
         
         # Preprocess
         input_tensor = self._preprocess_image(image)
         
-        # Encoder çalıştır
+        # Run Encoder
         inputs = {self._encoder_session.get_inputs()[0].name: input_tensor}
         outputs = self._encoder_session.run(None, inputs)
         self._image_embedding = outputs[0]
     
     def infer_point(self, x: int, y: int) -> np.ndarray:
         """
-        Tıklanan noktadan maske üret.
+        Generate mask from clicked point.
         
         Args:
-            x: Orijinal görsel üzerinde x koordinatı (piksel)
-            y: Orijinal görsel üzerinde y koordinatı (piksel)
+            x: X coordinate on original image (pixel)
+            y: Y coordinate on original image (pixel)
             
         Returns:
-            Binary maske (uint8, 0 veya 1), orijinal görsel boyutunda
+            Binary mask (uint8, 0 or 1), in original image size
         """
         if not self.has_embedding:
-            raise RuntimeError("Görsel ayarlanmadı! Önce set_image() çağırın.")
+            raise RuntimeError("Image not set! Call set_image() first.")
         
-        # Koordinatları scale et
+        # Scale coordinates
         onnx_x = x * self._scale_factor
         onnx_y = y * self._scale_factor
         
-        # Decoder inputları hazırla
+        # Prepare decoder inputs
         input_point = np.array([[onnx_x, onnx_y]], dtype=np.float32)
         input_label = np.array([1], dtype=np.float32)  # 1 = foreground
         
-        # 5 nokta gerekli (1 gerçek + 4 dummy)
+        # 5 points specific (1 real + 4 dummy)
         onnx_coord = np.concatenate([
             input_point, 
             np.array([[0.0, 0.0]] * 4, dtype=np.float32)
@@ -135,11 +135,11 @@ class SAMInferencer:
         
         masks, _, _ = self._decoder_session.run(None, ort_inputs)
         
-        # Binary maske oluştur
+        # Create binary mask
         final_mask = masks[0, 0, :, :]
         final_mask = (final_mask > 0).astype(np.uint8)
         
-        # Orijinal boyuta resize et
+        # Resize to original size
         if final_mask.shape[:2] != self._original_size:
             final_mask = cv2.resize(
                 final_mask, 
@@ -151,25 +151,25 @@ class SAMInferencer:
     
     def infer_box(self, x1: int, y1: int, x2: int, y2: int) -> np.ndarray:
         """
-        Bounding box'tan maske üret.
+        Generate mask from bounding box.
         
         Args:
-            x1, y1: Sol üst köşe (orijinal görsel koordinatları)
-            x2, y2: Sağ alt köşe (orijinal görsel koordinatları)
+            x1, y1: Top-left corner (original image coordinates)
+            x2, y2: Bottom-right corner (original image coordinates)
             
         Returns:
-            Binary maske (uint8, 0 veya 1), orijinal görsel boyutunda
+            Binary mask (uint8, 0 or 1), in original image size
         """
         if not self.has_embedding:
-            raise RuntimeError("Görsel ayarlanmadı! Önce set_image() çağırın.")
+            raise RuntimeError("Image not set! Call set_image() first.")
         
-        # Koordinatları scale et
+        # Scale coordinates
         onnx_x1 = x1 * self._scale_factor
         onnx_y1 = y1 * self._scale_factor
         onnx_x2 = x2 * self._scale_factor
         onnx_y2 = y2 * self._scale_factor
         
-        # Box prompt için 2 nokta (sol-üst ve sağ-alt köşeler)
+        # 2 points for box prompt (top-left and bottom-right corners)
         # Label: 2 = upper-left corner, 3 = lower-right corner
         box_coords = np.array([
             [onnx_x1, onnx_y1],
@@ -177,7 +177,7 @@ class SAMInferencer:
         ], dtype=np.float32)
         box_labels = np.array([2, 3], dtype=np.float32)  # 2=top-left, 3=bottom-right
         
-        # 5 nokta padding (2 gerçek + 3 dummy)
+        # 5 points padding (2 real + 3 dummy)
         onnx_coord = np.concatenate([
             box_coords,
             np.array([[0.0, 0.0]] * 3, dtype=np.float32)
@@ -203,11 +203,11 @@ class SAMInferencer:
         
         masks, _, _ = self._decoder_session.run(None, ort_inputs)
         
-        # Binary maske oluştur
+        # Create binary mask
         final_mask = masks[0, 0, :, :]
         final_mask = (final_mask > 0).astype(np.uint8)
         
-        # Orijinal boyuta resize et
+        # Resize to original size
         if final_mask.shape[:2] != self._original_size:
             final_mask = cv2.resize(
                 final_mask, 
@@ -219,15 +219,15 @@ class SAMInferencer:
     
     def mask_to_bbox(self, mask: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
         """
-        Maske'den bounding box çıkar.
+        Extract bounding box from mask.
         
         Args:
-            mask: Binary maske
+            mask: Binary mask
             
         Returns:
-            (x1, y1, x2, y2) veya None (maske boşsa)
+            (x1, y1, x2, y2) or None (if mask is empty)
         """
-        # Mask'taki beyaz piksellerin konumlarını bul
+        # Find coordinates of white pixels in mask
         coords = np.where(mask > 0)
         if len(coords[0]) == 0:
             return None
@@ -239,16 +239,16 @@ class SAMInferencer:
     
     def mask_to_polygon(self, mask: np.ndarray, simplify_epsilon: float = 2.0) -> Optional[List[Tuple[int, int]]]:
         """
-        Maske'den polygon noktaları çıkar.
+        Extract polygon points from mask.
         
         Args:
-            mask: Binary maske
-            simplify_epsilon: Douglas-Peucker simplification epsilon değeri
+            mask: Binary mask
+            simplify_epsilon: Douglas-Peucker simplification epsilon value
             
         Returns:
-            [(x1, y1), (x2, y2), ...] veya None (maske boşsa)
+            [(x1, y1), (x2, y2), ...] or None (if mask is empty)
         """
-        # Kontürü bul
+        # Find contour
         contours, _ = cv2.findContours(
             mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
@@ -256,28 +256,28 @@ class SAMInferencer:
         if not contours:
             return None
         
-        # En büyük kontürü al
+        # Get largest contour
         largest_contour = max(contours, key=cv2.contourArea)
         
-        # Kontürü sadeleştir
+        # Simplify contour
         epsilon = simplify_epsilon
         approx = cv2.approxPolyDP(largest_contour, epsilon, True)
         
-        # Minimum 3 nokta olmalı
+        # Minimum 3 points required
         if len(approx) < 3:
             return None
         
-        # Noktaları listeye dönüştür
+        # Convert points to list
         points = [(int(p[0][0]), int(p[0][1])) for p in approx]
         
         return points
     
     def _preprocess_image(self, image: np.ndarray) -> np.ndarray:
         """
-        Görseli encoder için hazırla.
+        Prepare image for encoder.
         
         Args:
-            image: BGR formatında numpy array
+            image: numpy array in BGR format
             
         Returns:
             (1, 3, 1024, 1024) float32 tensor
@@ -295,7 +295,7 @@ class SAMInferencer:
         
         x = (resized_image.astype(np.float32) - pixel_mean) / pixel_std
         
-        # Padding (sağa ve alta)
+        # Padding (right and bottom)
         pad_h = self.INPUT_SIZE - new_h
         pad_w = self.INPUT_SIZE - new_w
         x = np.pad(x, ((0, pad_h), (0, pad_w), (0, 0)), mode='constant', constant_values=0)
@@ -306,7 +306,7 @@ class SAMInferencer:
         return x
     
     def clear_embedding(self):
-        """Embedding cache'i temizle."""
+        """Clear embedding cache."""
         self._image_embedding = None
         self._original_size = None
         self._scale_factor = 1.0

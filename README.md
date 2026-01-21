@@ -1,74 +1,68 @@
-# LocalFlow 🏷️
+# LocalTagger 🏷️
 
-**AI Destekli Yerel Veri Etiketleme Aracı** - MobileSAM entegrasyonu ile otomatik segmentasyon, gizlilik odaklı, tamamen offline çalışan veri etiketleme ve veri seti yönetim uygulaması.
+**AI-Powered Local Data Annotation Tool** - Efficient, privacy-focused, offline data annotation tool featuring MobileSAM integration for automated segmentation.
 
-## ✨ Özellikler
+![LocalTagger](src/resources/icon/LocalTagger.ico)
 
-### 🤖 AI Destekli Etiketleme (MobileSAM)
-- **Tıkla → Otomatik etiket**: Nesneye tıkla, AI otomatik BBox veya Polygon çıkarsın
-- Arka planda çalışır, UI donmaz
-- `T` tuşu ile AI'ı aç/kapat
+## ✨ Features
 
-### 📝 Manuel Etiketleme
-- ⬜ Bounding Box çizimi
-- ◇ Polygon çizimi
-- Düzenlenebilir köşeler ve taşıma
+### 🤖 AI-Assisted Labeling (MobileSAM)
+- **Click → Auto Label**: Click on an object, AI automatically generates BBox or Polygon.
+- Runs locally in background, no UI freezing.
+- Toggle AI with `T` key.
 
-### � Export Formatları
+### 📝 Manual Annotation
+- ⬜ Bounding Box drawing
+- ◇ Polygon drawing
+- Editable vertices and drag-to-move support.
+
+### 📦 Export Formats
 - **YOLO**: v5-v11 (txt)
-- **COCO**: JSON formatı
-- **Pascal VOC**: XML formatı
-- **Custom**: Özel TXT/JSON şablonları
+- **COCO**: JSON format
+- **Pascal VOC**: XML format
+- **Custom**: Custom TXT/JSON templates
 
-### 🔧 Veri Yönetimi
-- Veri artırma (Augmentation): Brightness, contrast, rotation, flip, shear, cutout, motion blur
-- Train/Val/Test bölümleme
-- Resize seçenekleri
+### 🔧 Data Management
+- **Augmentation**: Brightness, contrast, rotation, flip, shear, cutout, motion blur.
+- **Dataset Split**: Train/Val/Test splitting.
+- **Resize**: Integrated resizing options.
 
-## 🚀 Kurulum
+## 🚀 Installation
 
 ```bash
-# Sanal ortam oluştur
+# Create virtual environment
 python -m venv venv
 
-# Sanal ortamı aktifleştir (Windows)
+# Activate virtual environment (Windows)
 venv\Scripts\activate
 
-# Bağımlılıkları yükle
+# Install dependencies
 pip install -r requirements.txt
 
-# Uygulamayı çalıştır
+# Run the application
 python src/main.py
 ```
 
-## ⌨️ Kısayollar
+## ⌨️ Shortcuts
 
-| Tuş | İşlev |
-|-----|-------|
-| `T` | AI Toggle (MobileSAM) |
-| `W` | BBox çizim modu |
-| `E` | Polygon çizim modu |
-| `Q` | Seç/Düzenle modu |
-| `A` / `D` | Önceki/Sonraki görsel |
-| `Ctrl+S` | Kaydet |
-| `Ctrl+E` | Dışa Aktar |
-| `Del` | Seçili etiketi sil |
-| `ESC` | Çizimi iptal |
+| Key | Function |
+|-----|----------|
+| `T` | Toggle AI (MobileSAM) |
+| `W` | BBox visual tool |
+| `E` | Polygon visual tool |
+| `Q` | Select/Edit mode |
+| `A` / `D` | Previous/Next image |
+| `Ctrl+S` | Save annotations |
+| `Ctrl+E` | Export data |
+| `Del` | Delete selected annotation |
+| `ESC` | Cancel drawing |
 
-## 📋 Gereksinimler
+## 📋 Requirements
 
 - Python 3.10+
 - Windows / Linux / macOS
-- MobileSAM ONNX modelleri (`src/resources/models/`)
+- MobileSAM ONNX models (placed in `src/resources/models/`)
 
-## 🗺️ Yol Haritası
-
-- [x] v0.5: Prototip - Temel tuval ve navigasyon
-- [x] v1.0: MVP - Manuel etiketleme ve kayıt
-- [x] v1.5: Veri Seti Yöneticisi - Augmentation ve bölümleme
-- [x] v2.0: AI Assistant - MobileSAM entegrasyonu ✨
-- [ ] v3.0: Active Learning - Model eğitimi
-
-## 📄 Lisans
+## 📄 License
 
 MIT License

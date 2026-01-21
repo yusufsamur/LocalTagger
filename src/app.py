@@ -1,5 +1,5 @@
 """
-LocalFlow - Main Application Class
+LocalTagger - Main Application Class
 ===================================
 Main window and application coordination.
 """
@@ -7,7 +7,7 @@ Main window and application coordination.
 from pathlib import Path
 from PySide6.QtWidgets import QMainWindow, QStatusBar, QFileDialog, QMessageBox
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut, QIcon
 
 from ui.main_window import MainWindow
 from ui.dialogs.class_management_dialog import ClassManagementDialog
@@ -20,14 +20,15 @@ from core.annotation import BoundingBox, Polygon
 from core.sam_worker import SAMWorker
 
 
-class LocalFlowApp(QMainWindow):
-    """LocalFlow main application window."""
+class LocalTaggerApp(QMainWindow):
+    """LocalTagger main application window."""
     
     SUPPORTED_FORMATS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif"}
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(self.tr("LocalFlow v2.0 - Data Annotation Tool"))
+        self.setWindowTitle(self.tr("LocalTagger - Data Annotation Tool"))
+        self.setWindowIcon(QIcon(str(Path(__file__).parent / "resources" / "icon" / "LocalTagger.ico")))
         self.setMinimumSize(1200, 800)
         
         # Language manager (set from main.py)
@@ -38,22 +39,22 @@ class LocalFlowApp(QMainWindow):
         self.class_manager = ClassManager()
         self.annotation_manager = AnnotationManager()
         
-        # Son kullanılan sınıf ID'si
+        # Last used class ID
         self._last_used_class_id = 0
         
-        # Bekleyen bbox (popup sınıf seçimi için)
+        # Pending bbox (for popup class selection)
         self._pending_bbox = None  # (x1, y1, x2, y2)
         
-        # Seçili annotation takibi (kopyala/yapıştır için)
+        # Track selected annotation (for copy/paste)
         self._selected_annotation = None  # (type: "bbox"|"polygon", index)
         
-        # Aktif popup takibi (aynı anda sadece 1 popup)
+        # Track active popup (only 1 popup at a time)
         self._active_popup = None
         
-        # Varsayılan sınıflar
+        # Default classes
         self._add_default_classes()
         
-        # Arayüz
+        # UI Setup
         self._setup_ui()
         self._setup_menubar()
         self._setup_statusbar()
@@ -62,11 +63,11 @@ class LocalFlowApp(QMainWindow):
         
         self.setAcceptDrops(True)
         
-        # SAM Worker (AI destekli etiketleme)
+        # SAM Worker (AI-assisted labeling)
         self._setup_sam_worker()
         
     def _add_default_classes(self):
-        """Varsayılan etiket sınıflarını ekle."""
+        """Add default label classes."""
         if self.class_manager.count == 0:
             self.class_manager.add_class("object")
         
@@ -117,13 +118,13 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(self.tr("Ready - Press Ctrl+O to open a folder"))
         
     def _setup_shortcuts(self):
-        # Navigasyon
+        # Navigation
         QShortcut(QKeySequence("D"), self, self._next_image)
         QShortcut(QKeySequence("A"), self, self._prev_image)
         QShortcut(QKeySequence("Right"), self, self._next_image)
         QShortcut(QKeySequence("Left"), self, self._prev_image)
         
-        # Araçlar
+        # Tools
         QShortcut(QKeySequence("Q"), self, lambda: self.main_window.set_tool("select"))
         QShortcut(QKeySequence("W"), self, lambda: self.main_window.set_tool("bbox"))
         QShortcut(QKeySequence("E"), self, lambda: self.main_window.set_tool("polygon"))
@@ -134,7 +135,7 @@ class LocalFlowApp(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Z"), self, self._undo)
         QShortcut(QKeySequence("Ctrl+Y"), self, self._redo)
         
-        # Kopyala/Yapıştır
+        # Copy/Paste
         QShortcut(QKeySequence("Ctrl+C"), self, self._copy_annotations)
         QShortcut(QKeySequence("Ctrl+V"), self, self._paste_annotations)
         
@@ -203,72 +204,72 @@ class LocalFlowApp(QMainWindow):
         canvas.bbox_created.connect(self._on_bbox_created)
         canvas.polygon_created.connect(self._on_polygon_created)
         
-        # BBox düzenleme sinyalleri
+        # BBox editing signals
         canvas.bbox_moved.connect(self._on_bbox_moved)
         canvas.bbox_delete_requested.connect(self._on_bbox_delete)
         canvas.bbox_class_change_requested.connect(self._on_bbox_class_change)
         
-        # Polygon düzenleme sinyalleri
+        # Polygon editing signals
         canvas.polygon_moved.connect(self._on_polygon_moved)
         canvas.polygon_delete_requested.connect(self._on_polygon_delete)
         canvas.polygon_class_change_requested.connect(self._on_polygon_class_change)
         
-        # Annotation tıklama - otomatik select moduna geçiş
+        # Annotation click - auto switch to select mode
         canvas.annotation_clicked.connect(self._on_annotation_clicked)
         
-        # Görsel değiştiğinde popup kapat
+        # Close popup when image changes
         self.main_window.image_selected.connect(self._on_image_changed)
         
         self.main_window.tool_changed.connect(self._on_tool_changed)
         
-        # SAM sinyalleri
+        # SAM signals
         canvas.sam_click_requested.connect(self._on_sam_click)
-        canvas.sam_box_requested.connect(self._on_sam_box)  # Polygon+AI için bbox→polygon
+        canvas.sam_box_requested.connect(self._on_sam_box)
         self.main_window.sam_toggled.connect(self._on_sam_toggled)
         
-        # Annotation list widget sinyalleri
+        # Annotation list widget signals
         self.main_window.annotation_list_widget.clear_all_requested.connect(self._delete_all_annotations)
     
     def _on_image_changed(self, image_path: str):
-        """Görsel değiştiğinde - açık popup'ları kapat ve SAM encoding başlat."""
+        """When image changes - close open popups and start SAM encoding."""
         if self._active_popup is not None:
             self._active_popup.close()
             self._active_popup = None
         
-        # SAM etkinse yeni görsel için encoding başlat
+        # If SAM enabled, start encoding for new image
         if self.main_window.sam_enabled:
             self._encode_current_image()
     
     def _on_annotation_clicked(self):
-        """Bir annotasyona tıklandığında - select moduna geç."""
+        """When an annotation is clicked - switch to select mode."""
         self.main_window.set_tool("select")
     
     def _on_popup_closed(self):
-        """Popup kapandığında - canvas'a focus ver ve çizim moduna dön."""
+        """When popup closed - focus canvas and return to drawing mode."""
         self._active_popup = None
         
-        # Düzenlenen item'ın indeksini sakla
+        # Store index of item being edited
         editing_index = getattr(self, '_pending_class_change_index', None)
         editing_type = getattr(self, '_last_edit_type', 'bbox')
         
-        # Canvas'ı yenile - düzenleme işaretlerini temizle
+        # Refresh canvas - clear editing marks
         self.main_window.refresh_canvas()
         
-        # Eğer bir item düzenleniyor idiyse, o item'ı tekrar seç
+        # If an item was being edited, select it again
         if editing_index is not None:
             canvas = self.main_window.canvas_view
             if canvas._annotation_items and 0 <= editing_index < len(canvas._annotation_items):
                 item = canvas._annotation_items[editing_index]
                 item.setSelected(True)
         
-        # Canvas'a focus ver (delete tuşları için)
+        # Focus canvas (for delete keys)
         self.main_window.canvas_view.setFocus()
         
-        # Son düzenlenen türüne göre mod değiştir
+        # Change tool mode based on last edited type
         self.main_window.set_tool(editing_type)
     
     def _on_popup_navigate(self, direction: str):
-        """Popup'tan navigasyon isteği geldiğinde."""
+        """When navigation requested from popup."""
         self._active_popup = None
         if direction == 'next':
             self._next_image()
@@ -280,17 +281,17 @@ class LocalFlowApp(QMainWindow):
     # ─────────────────────────────────────────────────────────────────
     
     def _on_bbox_created(self, x1: float, y1: float, x2: float, y2: float):
-        """BBox oluşturulduğunda - hemen ekle, sonra popup göster."""
+        """When BBox created - add immediately, then show popup."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             return
         
-        # Piksel koordinatlarını normalize et
+        # Normalize pixel coordinates
         w, h = self.main_window.canvas_view.scene.image_size
         if w == 0 or h == 0:
             return
         
-        # Varsayılan veya son kullanılan sınıf ile hemen ekle
+        # Add immediately with default or last used class
         class_id = self._last_used_class_id
         if self.class_manager.get_by_id(class_id) is None and self.class_manager.count > 0:
             class_id = self.class_manager.classes[0].id
@@ -305,28 +306,28 @@ class LocalFlowApp(QMainWindow):
         
         self.annotation_manager.add_bbox(image_path, bbox)
         
-        # Hemen kaydet
+        # Save immediately
         self.main_window._save_current_annotations()
         
-        # Canvas'ı yenile - bbox EditableRectItem olarak görünsün
+        # Refresh canvas - bbox appears as EditableRectItem
         self.main_window.refresh_canvas()
         self.main_window.annotation_list_widget.refresh()
         
-        # Son eklenen bbox'ı seçili yap (kesikli çizgi görünsün)
+        # Select the newly added bbox (show dashed line)
         canvas = self.main_window.canvas_view
         if canvas._annotation_items:
             last_item = canvas._annotation_items[-1]
             last_item.setSelected(True)
         
-        # Son eklenen bbox'ın indeksini sakla (sınıf değişikliği için)
+        # Store index of newly added bbox (for class change)
         annotations = self.annotation_manager.get_annotations(image_path)
         self._pending_bbox_index = len(annotations.bboxes) - 1
         
-        # Popup'u bbox'ın sağ üst köşesinde göster (biraz sağa ofset ile)
-        scene_pos = canvas.mapFromScene(x2 + 15, y1)  # 15px sağa ofset
+        # Show popup at top-right corner of bbox (with slight offset)
+        scene_pos = canvas.mapFromScene(x2 + 15, y1)  # 15px right offset
         global_pos = canvas.mapToGlobal(scene_pos)
         
-        # Eğer zaten bir popup açıksa, yeni popup açma
+        # If a popup is already open, do not open a new one
         if self._active_popup is not None:
             return
         
@@ -341,15 +342,15 @@ class LocalFlowApp(QMainWindow):
         self._class_popup.navigate_requested.connect(self._on_popup_navigate)
         self._class_popup.show_at(global_pos)
         
-        # Aktif popup olarak kaydet ve son düzenleme türünü belirle
+        # Register as active popup and set last edit type
         self._last_edit_type = "bbox"
         self._active_popup = self._class_popup
         
-        # Select moduna geç - bbox düzenlenebilsin
+        # Switch to select mode - bbox can be edited
         self.main_window.set_tool("select")
     
     def _on_new_bbox_class_selected(self, class_id: int):
-        """Yeni bbox için popup'tan sınıf seçildiğinde."""
+        """When class selected from popup for new bbox."""
         if not hasattr(self, '_pending_bbox_index'):
             return
         
@@ -362,30 +363,30 @@ class LocalFlowApp(QMainWindow):
         
         annotations = self.annotation_manager.get_annotations(image_path)
         if 0 <= index < len(annotations.bboxes):
-            # Sınıfı güncelle
+            # Update class
             annotations.bboxes[index].class_id = class_id
             self._last_used_class_id = class_id
             self.annotation_manager._mark_dirty(image_path)
             
-            # Hemen kaydet
+            # Save immediately
             self.main_window._save_current_annotations()
             
-            # Canvas'ı yenile
+            # Refresh canvas
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             
-            # Rengi güncelle
+            # Update color
             label_class = self.class_manager.get_by_id(class_id)
             if label_class:
                 self.main_window.canvas_view.set_draw_color(label_class.color)
             
             self.statusbar.showMessage(self.tr("✓ BBox added: {}").format(label_class.name if label_class else 'object'))
             
-            # Geri çizim moduna geç
+            # Switch back to drawing mode
             self.main_window.set_tool("bbox")
     
     def _on_new_bbox_cancelled(self):
-        """Yeni bbox sınıf seçimi iptal edildiğinde - bbox'ı sil."""
+        """When new bbox class selection cancelled - remove bbox."""
         if not hasattr(self, '_pending_bbox_index'):
             return
         
@@ -396,10 +397,10 @@ class LocalFlowApp(QMainWindow):
         if not image_path:
             return
         
-        # BBox'ı sil
+        # Delete bbox
         self.annotation_manager.remove_bbox(image_path, index)
         
-        # Kaydet ve yenile
+        # Save and refresh
         self.main_window._save_current_annotations()
         self.main_window.refresh_canvas()
         self.main_window.annotation_list_widget.refresh()
@@ -407,9 +408,9 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(self.tr("BBox cancelled"))
     
     def _on_bbox_cancelled(self):
-        """Bbox sınıf seçimi iptal edildiğinde."""
+        """When bbox class selection cancelled."""
         if self._pending_bbox:
-            # Canvas'tan bbox'u kaldır (çizilmiş son item)
+            # Remove bbox from canvas (last drawn item)
             if self.main_window.canvas_view._annotation_items:
                 last_item = self.main_window.canvas_view._annotation_items.pop()
                 try:
@@ -421,15 +422,15 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(self.tr("BBox cancelled"))
         
     def _on_polygon_created(self, points: list):
-        """Polygon oluşturulduğunda - popup göster."""
+        """When polygon created - show popup."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             return
         
-        # Piksel noktaları sakla
+        # Store pixel points
         self._pending_polygon = points
         
-        # Popup'u son noktanın yanında göster
+        # Show popup next to last point
         if points:
             last_x, last_y = points[-1]
             canvas = self.main_window.canvas_view
@@ -447,11 +448,11 @@ class LocalFlowApp(QMainWindow):
             popup.navigate_requested.connect(self._on_popup_navigate)
             popup.show_at(global_pos)
             
-            # Aktif popup olarak kaydet
+            # Save as active popup
             self._active_popup = popup
     
     def _on_polygon_class_selected(self, class_id: int):
-        """Popup'tan polygon sınıfı seçildiğinde."""
+        """When polygon class selected from popup."""
         if not self._pending_polygon:
             return
         
@@ -462,10 +463,10 @@ class LocalFlowApp(QMainWindow):
         if not image_path:
             return
         
-        # Sınıfı güncelle
+        # Update class
         self._last_used_class_id = class_id
         
-        # Normalize et
+        # Normalize
         w, h = self.main_window.canvas_view.scene.image_size
         if w == 0 or h == 0:
             return
@@ -475,7 +476,7 @@ class LocalFlowApp(QMainWindow):
         polygon = Polygon(class_id=class_id, points=normalized_points)
         self.annotation_manager.add_polygon(image_path, polygon)
         
-        # Canvas'ı yenile - polygon EditablePolygonItem olarak görünsün
+        # Refresh Canvas - polygon appears as EditablePolygonItem
         self.main_window.refresh_canvas()
         self.main_window.annotation_list_widget.refresh()
         
@@ -483,9 +484,9 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(self.tr("✓ Polygon added: {}").format(label_class.name if label_class else 'object'))
     
     def _on_polygon_cancelled(self):
-        """Polygon sınıf seçimi iptal edildiğinde."""
+        """When polygon class selection cancelled."""
         if self._pending_polygon:
-            # Canvas'tan polygon'u kaldır (çizilmiş son item)
+            # Remove polygon from canvas (last drawn item)
             if self.main_window.canvas_view._annotation_items:
                 last_item = self.main_window.canvas_view._annotation_items.pop()
                 try:
@@ -497,7 +498,7 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(self.tr("Polygon cancelled"))
     
     def _on_ai_polygon_class_selected(self, class_id: int):
-        """AI polygon için popup'tan sınıf seçildiğinde."""
+        """When class selected from popup for AI polygon."""
         if not hasattr(self, '_pending_polygon_index'):
             return
         
@@ -510,30 +511,30 @@ class LocalFlowApp(QMainWindow):
         
         annotations = self.annotation_manager.get_annotations(image_path)
         if 0 <= index < len(annotations.polygons):
-            # Sınıfı güncelle
+            # Update class
             annotations.polygons[index].class_id = class_id
             self._last_used_class_id = class_id
             self.annotation_manager._mark_dirty(image_path)
             
-            # Hemen kaydet
+            # Save immediately
             self.main_window._save_current_annotations()
             
-            # Canvas'ı yenile
+            # Refresh canvas
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             
-            # Rengi güncelle
+            # Update color
             label_class = self.class_manager.get_by_id(class_id)
             if label_class:
                 self.main_window.canvas_view.set_draw_color(label_class.color)
             
             self.statusbar.showMessage(self.tr("✓ AI Polygon class: {}").format(label_class.name if label_class else 'object'))
             
-            # Geri polygon moduna geç
+            # Switch back to polygon mode
             self.main_window.set_tool("polygon")
     
     def _on_ai_polygon_cancelled(self):
-        """AI polygon sınıf seçimi iptal edildiğinde - polygon'u sil."""
+        """When AI polygon class selection cancelled - remove polygon."""
         if not hasattr(self, '_pending_polygon_index'):
             return
         
@@ -544,10 +545,10 @@ class LocalFlowApp(QMainWindow):
         if not image_path:
             return
         
-        # Polygon'u sil
+        # Delete Polygon
         self.annotation_manager.remove_polygon(image_path, index)
         
-        # Kaydet ve yenile
+        # Save and refresh
         self.main_window._save_current_annotations()
         self.main_window.refresh_canvas()
         self.main_window.annotation_list_widget.refresh()
@@ -556,7 +557,7 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(self.tr("AI Polygon cancelled"))
         
     def _on_class_selected(self, class_id: int):
-        """Sınıf seçildiğinde."""
+        """When class selected."""
         self._last_used_class_id = class_id
         label_class = self.class_manager.get_by_id(class_id)
         if label_class:
@@ -564,7 +565,7 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage(self.tr("Class: {}").format(label_class.name))
     
     def _on_bbox_moved(self, index: int, new_rect):
-        """BBox taşındığında veya yeniden boyutlandırıldığında."""
+        """When BBox moved or resized."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             return
@@ -575,7 +576,7 @@ class LocalFlowApp(QMainWindow):
             if w == 0 or h == 0:
                 return
             
-            # Yeni koordinatları hesapla
+            # Calculate new coordinates
             bbox = annotations.bboxes[index]
             bbox.x_center = (new_rect.left() + new_rect.width() / 2) / w
             bbox.y_center = (new_rect.top() + new_rect.height() / 2) / h
@@ -584,45 +585,45 @@ class LocalFlowApp(QMainWindow):
             
             self.annotation_manager._mark_dirty(image_path)
             
-            # Hemen labels klasörüne kaydet
+            # Save to labels folder immediately
             self.main_window._save_current_annotations()
             
             self.statusbar.showMessage(self.tr("✓ BBox updated and saved"))
     
     def _on_bbox_delete(self, index: int):
-        """BBox silindiğinde."""
+        """When BBox deleted."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             return
         
-        # Açık popup varsa kapat
+        # Close popup if open
         if self._active_popup is not None:
             self._active_popup.close()
             self._active_popup = None
         
         if self.annotation_manager.remove_bbox(image_path, index):
-            # Kaydet
+            # Save
             self.main_window._save_current_annotations()
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             self.statusbar.showMessage(self.tr("✓ BBox deleted"))
     
     def _on_bbox_class_change(self, index: int, pos):
-        """BBox sınıf değiştirme isteğinde."""
+        """Request BBox class change."""
         from PySide6.QtCore import QPoint
         
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             return
         
-        # Eğer zaten bir popup açıksa, yeni popup açma
+        # If a popup already open, do not open new one
         if self._active_popup is not None:
             return
         
-        # Geçerli bbox'ı sakla
+        # Store current bbox
         self._pending_class_change_index = index
         
-        # Popup göster
+        # Show popup
         canvas = self.main_window.canvas_view
         view_pos = canvas.mapFromScene(pos)
         global_pos = canvas.mapToGlobal(view_pos)
@@ -637,12 +638,12 @@ class LocalFlowApp(QMainWindow):
         popup.navigate_requested.connect(self._on_popup_navigate)
         popup.show_at(global_pos)
         
-        # Aktif popup olarak kaydet ve son düzenleme türünü belirle
+        # Save as active popup and set last edit type
         self._last_edit_type = "bbox"
         self._active_popup = popup
     
     def _on_bbox_class_changed(self, new_class_id: int):
-        """BBox sınıfı değiştirildiğinde."""
+        """When BBox class changed."""
         if not hasattr(self, '_pending_class_change_index'):
             return
         
@@ -659,10 +660,10 @@ class LocalFlowApp(QMainWindow):
             self._last_used_class_id = new_class_id
             self.annotation_manager._mark_dirty(image_path)
             
-            # Hemen kaydet
+            # Save immediately
             self.main_window._save_current_annotations()
             
-            # Canvas'ı yenile
+            # Refresh canvas
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             
@@ -674,7 +675,7 @@ class LocalFlowApp(QMainWindow):
     # ─────────────────────────────────────────────────────────────────
     
     def _on_polygon_moved(self, index: int, new_points: list):
-        """Polygon taşındığında veya noktaları değiştiğinde."""
+        """When polygon moved or points changed."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             return
@@ -685,49 +686,49 @@ class LocalFlowApp(QMainWindow):
             if w == 0 or h == 0:
                 return
             
-            # Normalize koordinatları
+            # Normalize coordinates
             normalized_points = [(x / w, y / h) for x, y in new_points]
             annotations.polygons[index].points = normalized_points
             
             self.annotation_manager._mark_dirty(image_path)
             
-            # Hemen labels klasörüne kaydet
+            # Save to labels folder immediately
             self.main_window._save_current_annotations()
             
             self.statusbar.showMessage(self.tr("✓ Polygon updated and saved"))
     
     def _on_polygon_delete(self, index: int):
-        """Polygon silindiğinde."""
+        """When polygon deleted."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             return
         
-        # Açık popup varsa kapat
+        # Close popup if open
         if self._active_popup is not None:
             self._active_popup.close()
             self._active_popup = None
         
         if self.annotation_manager.remove_polygon(image_path, index):
-            # Kaydet
+            # Save
             self.main_window._save_current_annotations()
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             self.statusbar.showMessage(self.tr("✓ Polygon deleted"))
     
     def _on_polygon_class_change(self, index: int, pos):
-        """Polygon sınıf değiştirme isteğinde."""
+        """Request Polygon class change."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             return
         
-        # Eğer zaten bir popup açıksa, yeni popup açma
+        # If a popup already open, do not open new one
         if self._active_popup is not None:
             return
         
-        # Geçerli polygon'u sakla
+        # Store current polygon
         self._pending_polygon_class_change_index = index
         
-        # Popup göster
+        # Show popup
         canvas = self.main_window.canvas_view
         view_pos = canvas.mapFromScene(pos)
         global_pos = canvas.mapToGlobal(view_pos)
@@ -742,12 +743,12 @@ class LocalFlowApp(QMainWindow):
         popup.navigate_requested.connect(self._on_popup_navigate)
         popup.show_at(global_pos)
         
-        # Aktif popup olarak kaydet ve son düzenleme türünü belirle
+        # Save as active popup and set last edit type
         self._last_edit_type = "polygon"
         self._active_popup = popup
     
     def _on_polygon_class_changed(self, new_class_id: int):
-        """Polygon sınıfı değiştirildiğinde."""
+        """When polygon class changed."""
         if not hasattr(self, '_pending_polygon_class_change_index'):
             return
         
@@ -764,10 +765,10 @@ class LocalFlowApp(QMainWindow):
             self._last_used_class_id = new_class_id
             self.annotation_manager._mark_dirty(image_path)
             
-            # Hemen kaydet
+            # Save immediately
             self.main_window._save_current_annotations()
             
-            # Canvas'ı yenile
+            # Refresh canvas
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             
@@ -775,12 +776,12 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage(self.tr("✓ Polygon class updated: {}").format(label_class.name if label_class else 'object'))
             
     def _on_tool_changed(self, tool: str):
-        """Araç değiştiğinde."""
+        """When tool changed."""
         tool_names = {"select": self.tr("Select"), "bbox": "BBox", "polygon": "Polygon"}
         self.statusbar.showMessage(self.tr("Tool: {}").format(tool_names.get(tool, tool)))
     
     def _open_class_management(self):
-        """Sınıf yönetimi dialogunu aç."""
+        """Open class management dialog."""
         dialog = ClassManagementDialog(
             self.class_manager, 
             self.annotation_manager, 
@@ -790,24 +791,24 @@ class LocalFlowApp(QMainWindow):
         dialog.exec()
     
     def _on_classes_changed(self):
-        """Sınıflar değiştiğinde."""
-        # Etiket özetini güncelle
+        """When classes changed."""
+        # Update label summary
         self.main_window.annotation_list_widget.refresh()
-        # Canvas'ı yeniden çiz (renk değişiklikleri için)
+        # Redraw canvas (for color changes)
         self.main_window.refresh_canvas()
         self.statusbar.showMessage(self.tr("Classes updated"))
     
     def _undo(self):
-        """Son işlemi geri al."""
+        """Undo last action."""
         if not self.annotation_manager.can_undo():
             self.statusbar.showMessage(self.tr("Nothing to undo"))
             return
         
         image_path, success = self.annotation_manager.undo()
         if success:
-            # Kaydet
+            # Save
             self.main_window._save_current_annotations()
-            # Canvas'ı yenile
+            # Refresh canvas
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             self.statusbar.showMessage(self.tr("↩️ Undone"))
@@ -815,16 +816,16 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage(self.tr("Undo failed"))
     
     def _redo(self):
-        """Son geri alınan işlemi yeniden yap."""
+        """Redo last undone action."""
         if not self.annotation_manager.can_redo():
             self.statusbar.showMessage(self.tr("Nothing to redo"))
             return
         
         image_path, success = self.annotation_manager.redo()
         if success:
-            # Kaydet
+            # Save
             self.main_window._save_current_annotations()
-            # Canvas'ı yenile
+            # Refresh canvas
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             self.statusbar.showMessage(self.tr("↪️ Redone"))
@@ -832,10 +833,10 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage(self.tr("Redo failed"))
     
     def _copy_annotations(self):
-        """Seçili etiketi veya tüm etiketleri kopyala.
+        """Copy selected label or all labels.
         
-        Canvas'ta seçili bir bbox/polygon varsa sadece onu kopyalar.
-        Seçili bir şey yoksa tüm etiketleri kopyalar.
+        If a bbox/polygon is selected on canvas, copy only that.
+        If nothing selected, copy all labels.
         """
         image_path = self.main_window.get_current_image_path()
         if not image_path:
@@ -844,14 +845,14 @@ class LocalFlowApp(QMainWindow):
         
         import copy
         
-        # Canvas'tan seçili item'ı bul
+        # Find selected item from canvas
         canvas = self.main_window.canvas_view
         scene = canvas.scene
         
         selected_items = scene.selectedItems()
         
         if selected_items:
-            # Seçili item varsa sadece onu kopyala
+            # If selected item exists, copy only that
             from canvas.editable_rect_item import EditableRectItem
             from canvas.editable_polygon_item import EditablePolygonItem
             
@@ -860,13 +861,13 @@ class LocalFlowApp(QMainWindow):
             
             for item in selected_items:
                 if isinstance(item, EditableRectItem):
-                    # BBox indeksini bul
+                    # Find BBox index
                     index = getattr(item, 'index', -1)
                     annotations = self.annotation_manager.get_annotations(image_path)
                     if 0 <= index < len(annotations.bboxes):
                         self._clipboard_bboxes.append(copy.deepcopy(annotations.bboxes[index]))
                 elif isinstance(item, EditablePolygonItem):
-                    # Polygon indeksini bul
+                    # Find Polygon index
                     index = getattr(item, 'index', -1)
                     annotations = self.annotation_manager.get_annotations(image_path)
                     if 0 <= index < len(annotations.polygons):
@@ -878,17 +879,17 @@ class LocalFlowApp(QMainWindow):
             else:
                 self.statusbar.showMessage(self.tr("Selected annotation not found"))
         else:
-            # Hiçbir şey seçili değilse uyarı göster
+            # Show warning if nothing selected
             self.statusbar.showMessage(self.tr("Select an annotation first to copy"))
     
     def _paste_annotations(self):
-        """Kopyalanan etiketleri mevcut görsele yapıştır."""
+        """Paste copied labels to current image."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             self.statusbar.showMessage(self.tr("No image to paste to!"))
             return
         
-        # Clipboard kontrolü
+        # Clipboard check
         bboxes = getattr(self, '_clipboard_bboxes', [])
         polygons = getattr(self, '_clipboard_polygons', [])
         
@@ -896,28 +897,28 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage(self.tr("Nothing to paste (copy with Ctrl+C first)"))
             return
         
-        # Offset değeri (%2 sağ-aşağı kaydırma)
+        # Offset value (2% right-down shift)
         OFFSET = 0.02
         
-        # Etiketleri ekle (offset ile)
+        # Add labels (with offset)
         import copy
         for bbox in bboxes:
             new_bbox = copy.deepcopy(bbox)
-            # Sağ alt tarafa kaydır
+            # Shift to bottom-right
             new_bbox.x_center = min(1.0, new_bbox.x_center + OFFSET)
             new_bbox.y_center = min(1.0, new_bbox.y_center + OFFSET)
             self.annotation_manager.add_bbox(image_path, new_bbox)
         
         for polygon in polygons:
             new_polygon = copy.deepcopy(polygon)
-            # Tüm noktaları kaydır
+            # Shift all points
             new_polygon.points = [
                 (min(1.0, x + OFFSET), min(1.0, y + OFFSET))
                 for x, y in new_polygon.points
             ]
             self.annotation_manager.add_polygon(image_path, new_polygon)
         
-        # Kaydet ve yenile
+        # Save and refresh
         self.main_window._save_current_annotations()
         self.main_window.refresh_canvas()
         self.main_window.annotation_list_widget.refresh()
@@ -926,7 +927,7 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(self.tr("📋 {} annotation(s) pasted").format(total))
     
     def _delete_all_annotations(self):
-        """Mevcut görseldeki tüm etiketleri sil."""
+        """Delete all labels in current image."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             self.statusbar.showMessage(self.tr("No image to delete from!"))
@@ -939,7 +940,7 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage(self.tr("No annotations to delete"))
             return
         
-        # Onay al
+        # Get confirmation
         result = QMessageBox.question(
             self, self.tr("Delete All"),
             self.tr("Are you sure you want to delete {} annotations from this image?\n\nThis action cannot be undone!").format(total),
@@ -955,17 +956,17 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage(self.tr("🗑️ {} annotation(s) deleted").format(total))
     
     # ─────────────────────────────────────────────────────────────────
-    # Kayıt İşlemleri
+    # Save Operations
     # ─────────────────────────────────────────────────────────────────
     
     def _save_annotations(self):
-        """Mevcut görselin annotasyonlarını labels klasörüne kaydet."""
+        """Save current image annotations to labels folder."""
         image_path = self.main_window.get_current_image_path()
         if not image_path:
             self.statusbar.showMessage(self.tr("No image to save!"))
             return
         
-        # Labels klasörünü belirle
+        # Determine labels folder
         image_p = Path(image_path)
         parent = image_p.parent
         if parent.name.lower() == "images":
@@ -978,12 +979,12 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(self.tr("✓ Saved: {}.txt").format(image_p.stem))
         
     def _save_all_annotations(self):
-        """Tüm annotasyonları labels klasörüne kaydet."""
+        """Save all annotations to labels folder."""
         if not self.project.root_path:
             self.statusbar.showMessage(self.tr("No source folder!"))
             return
         
-        # Labels klasörünü belirle
+        # Determine labels folder
         root = self.project.root_path
         if root.name.lower() == "images":
             labels_dir = root.parent / "labels"
@@ -997,12 +998,12 @@ class LocalFlowApp(QMainWindow):
             self.annotation_manager.save_yolo(str(image_path), labels_dir)
             count += 1
             
-        # classes.txt kaydet
+        # Save classes.txt
         self.class_manager.save_to_file(labels_dir / "classes.txt")
         self.statusbar.showMessage(self.tr("✓ {} file(s) saved").format(count))
         
     def _export_labels(self):
-        """Dışa aktarım dialogunu aç - augmentation ve split destekli."""
+        """Open export dialog - with augmentation and split support."""
         if not self.project.root_path:
             self.statusbar.showMessage(self.tr("Open a folder first!"))
             return
@@ -1011,20 +1012,20 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage(self.tr("No images to export!"))
             return
         
-        # Export öncesi mevcut görselin etiketlerini kaydet
+        # Save current image labels before export
         self.main_window._save_current_annotations()
         
-        # Export öncesi tüm görsellerin etiketlerini diskten yükle
+        # Load all labels from disk before export
         self._load_all_labels_for_export()
         
-        # Varsayılan çıktı klasörü
+        # Default output folder
         root = self.project.root_path
         if root.name.lower() == "images":
             default_output_dir = root.parent / "export"
         else:
             default_output_dir = root / "export"
         
-        # Export wizard'ı aç (v1.5)
+        # Open Export Wizard (v1.5)
         dialog = ExportWizard(
             class_manager=self.class_manager,
             annotation_manager=self.annotation_manager,
@@ -1035,7 +1036,7 @@ class LocalFlowApp(QMainWindow):
         dialog.exec()
     
     def _load_all_labels_for_export(self):
-        """Export öncesi tüm etiketleri diskten yükle."""
+        """Load all labels from disk before export."""
         from pathlib import Path
         import cv2
         
@@ -1051,18 +1052,18 @@ class LocalFlowApp(QMainWindow):
         for image_path in self.project.image_files:
             key = str(image_path)
             
-            # Eğer bu görsel için annotation zaten yüklüyse atla
+            # Skip if annotation already loaded for this image
             if key in self.annotation_manager._annotations:
                 existing = self.annotation_manager._annotations[key]
                 if existing.bboxes or existing.polygons:
                     continue
             
-            # Labels dosyasını bul
+            # Find Labels file
             txt_path = labels_dir / f"{image_path.stem}.txt"
             if not txt_path.exists():
                 continue
             
-            # Görsel boyutlarını al
+            # Get image dimensions
             try:
                 img = cv2.imdecode(
                     __import__('numpy').frombuffer(open(str(image_path), 'rb').read(), __import__('numpy').uint8),
@@ -1074,16 +1075,16 @@ class LocalFlowApp(QMainWindow):
             except:
                 continue
             
-            # Etiketi yükle
+            # Load label
             self.annotation_manager._load_from_path(key, txt_path, w, h)
         
     def _delete_selected_annotation(self):
-        """Seçili etiketi sil."""
+        """Delete selected label."""
         # TODO: Implement selection
         pass
         
     def _clear_all_annotations(self):
-        """Tüm etiketleri temizle."""
+        """Clear all annotations."""
         image_path = self.main_window.get_current_image_path()
         if image_path:
             self.annotation_manager.clear_annotations(image_path)
@@ -1124,7 +1125,7 @@ class LocalFlowApp(QMainWindow):
                 self._load_files(image_files)
     
     # ─────────────────────────────────────────────────────────────────
-    # Dosya İşlemleri
+    # File Operations
     # ─────────────────────────────────────────────────────────────────
     
     def _open_folder(self):
@@ -1147,7 +1148,7 @@ class LocalFlowApp(QMainWindow):
         if count > 0:
             folder = Path(folder_path)
             
-            # Labels klasörünü belirle
+            # Determine labels folder
             if folder.name.lower() == "images":
                 labels_dir = folder.parent / "labels"
                 root_dir = folder.parent
@@ -1157,11 +1158,11 @@ class LocalFlowApp(QMainWindow):
             
             classes_loaded = False
             
-            # 1. Önce data.yaml'dan sınıfları yüklemeyi dene
+            # 1. Try loading classes from data.yaml first
             if self._load_classes_from_yaml(root_dir):
                 classes_loaded = True
             
-            # 2. Yoksa classes.txt'den yükle
+            # 2. Else load from classes.txt
             if not classes_loaded:
                 classes_path = folder / "classes.txt"
                 if not classes_path.exists():
@@ -1170,14 +1171,14 @@ class LocalFlowApp(QMainWindow):
                     self.class_manager.load_from_file(classes_path)
                     classes_loaded = True
             
-            # 3. Hiçbiri yoksa etiket dosyalarını tarayarak sınıfları keşfet
+            # 3. If neither exists, discover classes by scanning label files
             if not classes_loaded:
                 self._discover_classes_from_labels(labels_dir)
             
             self.main_window.populate_file_list(self.project.image_files)
             self.main_window.file_list.setCurrentRow(0)
             
-            # 4. Tüm etiketleri preload et (istatistikler için)
+            # 4. Preload all annotations (for statistics)
             self._preload_all_annotations(labels_dir)
             
             class_count = self.class_manager.count
@@ -1186,10 +1187,10 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage(self.tr("No images found in folder!"))
     
     def _load_classes_from_yaml(self, root_dir: Path) -> bool:
-        """data.yaml dosyasından sınıfları yükle.
+        """Load classes from data.yaml.
         
         Returns:
-            True eğer başarılı yüklendiyse
+            True if successfully loaded
         """
         import yaml
         
@@ -1210,7 +1211,7 @@ class LocalFlowApp(QMainWindow):
                     if names:
                         self.class_manager.clear()
                         
-                        # names dict veya list olabilir
+                        # names can be dict or list
                         if isinstance(names, dict):
                             for class_id, name in names.items():
                                 self.class_manager.add_class_with_id(int(class_id), name)
@@ -1221,27 +1222,27 @@ class LocalFlowApp(QMainWindow):
                         self.statusbar.showMessage(self.tr("✓ {} classes loaded from data.yaml").format(len(names)))
                         return True
                 except Exception as e:
-                    print(f"data.yaml okuma hatası: {e}")
+                    print(f"data.yaml read error: {e}")
         
         return False
     
     def _discover_classes_from_labels(self, labels_dir: Path):
-        """Etiket dosyalarını tarayarak kullanılan sınıf ID'lerini keşfet.
+        """Discover used class IDs by scanning label files.
         
-        Bu fonksiyon sadece classes.txt ve data.yaml yoksa çağrılır.
+        This function is called only if classes.txt and data.yaml are missing.
         """
         if not labels_dir.exists():
             return
         
-        # Kullanıcıya bilgi ver
+        # User info
         from PySide6.QtWidgets import QApplication
         self.statusbar.showMessage(self.tr("🔍 Scanning label files..."))
-        QApplication.processEvents()  # UI'ı güncelle
+        QApplication.processEvents()  # Update UI
         
         discovered_ids = set()
         file_count = 0
         
-        # Tüm .txt dosyalarını tara (sadece class ID'leri oku - optimize)
+        # Scan all .txt files (read only class IDs - optimized)
         txt_files = list(labels_dir.glob("*.txt"))
         total_files = len(txt_files)
         
@@ -1251,7 +1252,7 @@ class LocalFlowApp(QMainWindow):
             
             file_count += 1
             
-            # Her 100 dosyada bir UI güncelle
+            # Update UI every 100 files
             if file_count % 100 == 0:
                 self.statusbar.showMessage(self.tr("🔍 Scanning... {}/{}").format(file_count, total_files))
                 QApplication.processEvents()
@@ -1272,21 +1273,21 @@ class LocalFlowApp(QMainWindow):
             except Exception:
                 continue
         
-        # Keşfedilen sınıfları oluştur (her birine farklı renk)
+        # Create discovered classes (assign different color to each)
         for class_id in sorted(discovered_ids):
             if self.class_manager.get_by_id(class_id) is None:
                 self.class_manager.add_class_with_id(class_id, f"class_{class_id}")
         
         if discovered_ids:
             self.statusbar.showMessage(
-                f"🔍 {len(discovered_ids)} sınıf keşfedildi (classes.txt/data.yaml bulunamadı)"
+                f"🔍 {len(discovered_ids)} classes discovered (classes.txt/data.yaml not found)"
             )
     
     def _preload_all_annotations(self, labels_dir: Path):
-        """Tüm etiket dosyalarını preload et (istatistikler için).
+        """Preload all label files (for statistics).
         
-        Bu fonksiyon tüm .txt dosyalarını okuyarak annotation_manager'a yükler,
-        böylece sınıf istatistikleri başlangıçtan itibaren doğru gösterilir.
+        This function loads all .txt files into annotation_manager,
+        so that class statistics are shown correctly from the start.
         """
         import cv2
         import numpy as np
@@ -1308,26 +1309,26 @@ class LocalFlowApp(QMainWindow):
             
             loaded_count += 1
             
-            # Her 50 dosyada bir UI güncelle
+            # Update UI every 50 files
             if loaded_count % 50 == 0:
                 self.statusbar.showMessage(self.tr("📊 Loading annotations... {}/{}").format(loaded_count, total_files))
                 QApplication.processEvents()
             
-            # Eşleşen görsel dosyasını bul
+            # Find matching image file
             image_path = None
             for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.webp']:
                 potential_path = txt_path.parent.parent / "images" / f"{txt_path.stem}{ext}"
                 if potential_path.exists():
                     image_path = potential_path
                     break
-                # Aynı klasörde olabilir
+                # Could be in same folder
                 potential_path = txt_path.parent / f"{txt_path.stem}{ext}"
                 if potential_path.exists():
                     image_path = potential_path
                     break
             
             if not image_path:
-                # Proje dosyalarından bul
+                # Find from project files
                 for img_file in self.project.image_files:
                     if img_file.stem == txt_path.stem:
                         image_path = img_file
@@ -1338,11 +1339,11 @@ class LocalFlowApp(QMainWindow):
             
             key = str(image_path)
             
-            # Görsel boyutlarını al (eğer henüz yüklenmemişse varsayılan değer kullan)
-            # Etiketler normalize olduğu için boyut kritik değil, varsayılan kullan
-            w, h = 1920, 1080  # Varsayılan boyut (normalize koordinatlar için önemsiz)
+            # Get image dimensions (if not loaded yet use default)
+            # Since labels are normalized, dimension is not critical, use default
+            w, h = 1920, 1080  # Default size (unimportant for normalized coords)
             
-            # Etiketi yükle
+            # Load label
             self.annotation_manager._load_from_path(key, txt_path, w, h)
             
     def _load_files(self, image_files: list):
@@ -1355,7 +1356,7 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(self.tr("🖼️ {} images loaded").format(len(image_files)))
             
     def _next_image(self):
-        # Açık popup varsa kapat
+        # Close popup if open
         if self._active_popup is not None:
             self._active_popup.close()
             self._active_popup = None
@@ -1366,7 +1367,7 @@ class LocalFlowApp(QMainWindow):
             self.main_window.file_list.setCurrentRow(current + 1)
             
     def _prev_image(self):
-        # Açık popup varsa kapat
+        # Close popup if open
         if self._active_popup is not None:
             self._active_popup.close()
             self._active_popup = None
@@ -1402,60 +1403,52 @@ class LocalFlowApp(QMainWindow):
         self.statusbar.showMessage(f"[{current}/{total}] ({x}, {y}) | %{percent}")
     
     # ─────────────────────────────────────────────────────────────────
-    # Yardım
+    # Help
     # ─────────────────────────────────────────────────────────────────
     
     def _show_about(self):
-        about_text = self.tr("""<h2>LocalFlow v2.0</h2>
-<p><b>AI-Powered Data Annotation Tool</b></p>
+        about_text = self.tr("""<h2>LocalTagger</h2>
+<p><b>Professional Data Annotation Tool</b></p>
+<p>LocalTagger is a high-performance, privacy-centric application designed for efficient local data annotation. It integrates advanced AI capabilities with a robust manual labeling interface.</p>
 
-<h3>🤖 AI Features (MobileSAM)</h3>
+<h3>Key Features</h3>
 <ul>
-<li>Press <b>T</b> to enable AI</li>
-<li>Click → Automatic BBox or Polygon</li>
-<li>Runs in background, UI stays responsive</li>
+<li><b>Secure & Local:</b> Operates entirely offline to ensure maximum data privacy.</li>
+<li><b>AI Assistance:</b> Integrated MobileSAM model for automated object segmentation.</li>
+<li><b>Multi-Format Export:</b> Supports YOLO, COCO, and Pascal VOC standards with built-in data augmentation.</li>
 </ul>
 
-<h3>⌨️ Shortcuts</h3>
-<table>
-<tr><td><b>T</b></td><td>AI Toggle</td><td><b>W</b></td><td>Draw BBox</td></tr>
-<tr><td><b>E</b></td><td>Draw Polygon</td><td><b>Q</b></td><td>Select/Edit</td></tr>
-<tr><td><b>A/D</b></td><td>Change Image</td><td><b>Ctrl+S</b></td><td>Save</td></tr>
-<tr><td><b>Ctrl+E</b></td><td>Export</td><td><b>Del</b></td><td>Delete</td></tr>
-<tr><td><b>ESC</b></td><td>Cancel</td><td></td><td></td></tr>
+<h3>Usage Guide</h3>
+<p>To start annotating, load a folder of images using the File menu. Select a class from the list or create a new one.</p>
+<ul>
+<li><b>Drawing:</b> Use the Toolbar or shortcuts to switch between Bounding Box and Polygon modes.</li>
+<li><b>Editing:</b> Switch to Select Mode to adjust existing annotations. Double-click a label to modify its class.</li>
+<li><b>AI Mode:</b> Enable AI to automatically segment and annotate objects with a single click.</li>
+</ul>
+
+<h3>Keyboard Shortcuts</h3>
+<table width="100%" cellspacing="4">
+<tr><td><b>W</b></td><td>Bounding Box Tool</td><td><b>E</b></td><td>Polygon Tool</td></tr>
+<tr><td><b>Q</b></td><td>Select/Edit Tool</td><td><b>T</b></td><td>Toggle AI Mode</td></tr>
+<tr><td><b>A / D</b></td><td>Previous / Next Image</td><td><b>Del</b></td><td>Delete Selected</td></tr>
+<tr><td><b>Ctrl+S</b></td><td>Save Changes</td><td><b>Ctrl+E</b></td><td>Export Data</td></tr>
 </table>
 
-<h3>📦 Export Formats</h3>
-<ul>
-<li><b>YOLO</b>: v5, v6, v7, v8, v9, v10, v11</li>
-<li><b>COCO</b>: JSON format (with segmentation)</li>
-<li><b>Pascal VOC</b>: XML format</li>
-<li><b>Custom</b>: Custom TXT or JSON format</li>
-</ul>
-
-<h3>💡 Tips</h3>
-<ul>
-<li>BBox/Polygon: Double-click = change class</li>
-<li>Q mode: Select, move, resize from corners</li>
-<li>Labels are automatically saved to labels/ folder</li>
-<li>In AI mode, click on object for auto segmentation!</li>
-</ul>
-
-<p style="color: gray; font-size: 10px;">© 2026 LocalFlow</p>
+<p style="color: grey; font-size: 10px; margin-top: 15px;">© 2026 LocalTagger</p>
 """)
         msg = QMessageBox(self)
-        msg.setWindowTitle(self.tr("About LocalFlow"))
+        msg.setWindowTitle(self.tr("About LocalTagger"))
         msg.setTextFormat(Qt.TextFormat.RichText)
         msg.setText(about_text)
         msg.setIcon(QMessageBox.Icon.Information)
         msg.exec()
 
     def closeEvent(self, event):
-        """Uygulama kapanırken kaydedilmemiş değişiklikleri kontrol et."""
-        # Mevcut görselin etiketlerini kaydet
+        """Check for unsaved changes when closing application."""
+        # Save current image labels
         self.main_window._save_current_annotations()
         
-        # Kaydedilmemiş değişiklik var mı kontrol et
+        # Check if there are unsaved changes
         if self.annotation_manager.is_dirty():
             reply = QMessageBox.question(
                 self,
@@ -1467,7 +1460,7 @@ class LocalFlowApp(QMainWindow):
             )
             
             if reply == QMessageBox.StandardButton.Save:
-                # Tüm değişiklikleri kaydet
+                # Save all changes
                 self._save_all_annotations()
                 event.accept()
             elif reply == QMessageBox.StandardButton.Discard:
@@ -1479,10 +1472,10 @@ class LocalFlowApp(QMainWindow):
         event.accept()
     
     def keyPressEvent(self, event):
-        """Aktif popup varsa tuş olaylarını popup'a yönlendir."""
+        """If active popup exists, redirect key events to popup."""
         if self._active_popup is not None and self._active_popup.isVisible():
             key = event.key()
-            # 1-9 tuşları, Enter, ESC - popup'a yönlendir
+            # 1-9 keys, Enter, ESC - redirect to popup
             if (Qt.Key.Key_1 <= key <= Qt.Key.Key_9 or 
                 key in (Qt.Key.Key_Escape, Qt.Key.Key_Return, Qt.Key.Key_Enter,
                        Qt.Key.Key_A, Qt.Key.Key_D, Qt.Key.Key_Left, Qt.Key.Key_Right)):
@@ -1495,17 +1488,17 @@ class LocalFlowApp(QMainWindow):
     # ─────────────────────────────────────────────────────────────────
     
     def _setup_sam_worker(self):
-        """SAM worker'ı başlat."""
-        # Model yolları
+        """Start SAM worker."""
+        # Model paths
         resources_dir = Path(__file__).parent / "resources" / "models"
         encoder_path = resources_dir / "mobile_sam_encoder.onnx"
         decoder_path = resources_dir / "mobile_sam.onnx"
         
-        # Worker oluştur
+        # Create worker
         self._sam_worker = SAMWorker(self)
         self._sam_worker.set_model_paths(str(encoder_path), str(decoder_path))
         
-        # Sinyalleri bağla
+        # Connect signals
         self._sam_worker.model_loaded.connect(self._on_sam_model_loaded)
         self._sam_worker.model_load_failed.connect(self._on_sam_model_failed)
         self._sam_worker.encoding_started.connect(self._on_sam_encoding_started)
@@ -1513,70 +1506,70 @@ class LocalFlowApp(QMainWindow):
         self._sam_worker.mask_ready.connect(self._on_sam_mask_ready)
         self._sam_worker.error_occurred.connect(self._on_sam_error)
         
-        # Modelleri yükle (async)
+        # Load models (async)
         self.main_window.set_sam_ready(False)
         self._sam_worker.request_load_models()
     
     def _toggle_magic_pixel(self):
-        """Magic Pixel toggle kısayolu (T tuşu)."""
+        """Magic Pixel toggle shortcut (T key)."""
         if not self._sam_worker.is_model_loaded:
             self.statusbar.showMessage(self.tr("⏳ SAM model is loading, please wait..."))
             return
         
-        # Magic Pixel aktifse kapat, değilse aç
+        # If Magic Pixel active close, else open
         if self.main_window.sam_mode == "pixel":
             self.main_window.set_sam_mode(None)
         else:
             self.main_window.set_sam_mode("pixel")
     
     def _toggle_magic_box(self):
-        """Magic Box toggle kısayolu (Y tuşu)."""
+        """Magic Box toggle shortcut (Y key)."""
         if not self._sam_worker.is_model_loaded:
             self.statusbar.showMessage(self.tr("⏳ SAM model is loading, please wait..."))
             return
         
-        # Magic Box aktifse kapat, değilse aç
+        # If Magic Box active close, else open
         if self.main_window.sam_mode == "box":
             self.main_window.set_sam_mode(None)
         else:
             self.main_window.set_sam_mode("box")
     
     def _on_sam_toggled(self, enabled: bool):
-        """SAM toggle değiştiğinde."""
+        """When SAM toggle changes."""
         if enabled:
             self.statusbar.showMessage(self.tr("🤖 AI mode enabled - Click on an object"))
-            # Eğer görsel varsa encoding başlat
+            # If image exists start encoding
             self._encode_current_image()
         else:
             self.statusbar.showMessage(self.tr("🤖 AI mode disabled"))
     
     def _on_sam_model_loaded(self):
-        """SAM modeli yüklendiğinde."""
+        """When SAM model loaded."""
         self.main_window.set_sam_ready(True)
         self.statusbar.showMessage(self.tr("✓ SAM model loaded - Press T to enable AI"))
     
     def _on_sam_model_failed(self, error: str):
-        """SAM model yükleme hatası."""
+        """SAM model load error."""
         self.main_window.set_sam_ready(False)
         self.statusbar.showMessage(self.tr("❌ SAM model error: {}").format(error))
     
     def _on_sam_encoding_started(self):
-        """Görsel encoding başladığında."""
+        """When image encoding starts."""
         self.main_window.set_sam_status(self.tr("⏳ Analyzing..."))
     
     def _on_sam_encoding_finished(self):
-        """Görsel encoding tamamlandığında."""
+        """When image encoding finishes."""
         self.main_window.set_sam_status(self.tr("✓ Ready"))
         self.statusbar.showMessage(self.tr("🤖 AI ready - Click on an object"))
     
     def _on_sam_error(self, error: str):
-        """SAM hatası oluştuğunda."""
+        """When SAM error occurs."""
         self.main_window.set_sam_status("")
         self.statusbar.showMessage(self.tr("❌ SAM error: {}").format(error))
     
     def _on_sam_click(self, x: int, y: int, mode: str):
-        """Canvas'tan SAM tıklaması geldiğinde."""
-        # Popup açıksa yeni tıklamayı engelle
+        """When SAM click received from canvas."""
+        # Prevent new click if popup open
         if self._active_popup is not None:
             return
         
@@ -1588,26 +1581,26 @@ class LocalFlowApp(QMainWindow):
         self._sam_worker.request_infer_point(x, y, mode)
     
     def _on_sam_box(self, x1: int, y1: int, x2: int, y2: int, mode: str):
-        """Canvas'tan SAM bbox isteği geldiğinde (Magic Box modu).
+        """When SAM bbox request received from canvas (Magic Box mode).
         
         Args:
             x1, y1, x2, y2: Bbox koordinatları
-            mode: 'bbox' veya 'polygon' - sonucun türü
+            mode: 'bbox' or 'polygon' - result type
         """
-        # Popup açıksa yeni isteği engelle
+        # Prevent new request if popup open
         if self._active_popup is not None:
             return
         
         if not self._sam_worker.is_ready:
-            self.statusbar.showMessage("⏳ Lütfen bekleyin, görsel analiz ediliyor...")
+            self.statusbar.showMessage("⏳ Please wait, analyzing image...")
             return
         
         mode_text = "bbox→bbox" if mode == "bbox" else "bbox→polygon"
-        self.statusbar.showMessage(f"🔍 AI {mode_text} segmentasyon yapılıyor...")
+        self.statusbar.showMessage(f"🔍 AI {mode_text} segmentation in progress...")
         self._sam_worker.request_infer_box(x1, y1, x2, y2, mode)
     
     def _on_sam_mask_ready(self, mask, mode: str, x: int, y: int):
-        """SAM mask hazır olduğunda."""
+        """When SAM mask is ready."""
         import numpy as np
         
         image_path = self.main_window.get_current_image_path()
@@ -1622,27 +1615,27 @@ class LocalFlowApp(QMainWindow):
             # Mask → BBox
             result = self._sam_worker.get_bbox_from_mask(mask)
             if result is None:
-                self.statusbar.showMessage("❌ Nesne bulunamadı")
+                self.statusbar.showMessage("❌ Object not found")
                 return
             
             x1, y1, x2, y2 = result
             
-            # BBox oluştur
+            # Create BBox
             self._on_bbox_created(float(x1), float(y1), float(x2), float(y2))
-            self.statusbar.showMessage(f"✓ AI BBox oluşturuldu")
+            self.statusbar.showMessage(f"✓ AI BBox created")
             
         elif mode == "polygon":
             # Mask → Polygon
             points = self._sam_worker.get_polygon_from_mask(mask)
             if points is None or len(points) < 3:
-                self.statusbar.showMessage("❌ Nesne bulunamadı")
+                self.statusbar.showMessage("❌ Object not found")
                 return
             
-            # Polygon oluştur - mevcut akışı kullan
+            # Create polygon - use existing flow
             self._pending_polygon = list(points)
             
-            # Önce polygon'u geçici olarak ekle (görsel feedback için)
-            # Normalize et
+            # Add polygon temporarily first (for visual feedback)
+            # Normalize
             w, h = self.main_window.canvas_view.scene.image_size
             normalized_points = [(x / w, y / h) for x, y in points]
             
@@ -1653,16 +1646,16 @@ class LocalFlowApp(QMainWindow):
             polygon = Polygon(class_id=class_id, points=normalized_points)
             self.annotation_manager.add_polygon(image_path, polygon)
             
-            # Kaydet ve yenile
+            # Save and refresh
             self.main_window._save_current_annotations()
             self.main_window.refresh_canvas()
             self.main_window.annotation_list_widget.refresh()
             
-            # Son eklenen polygon'un indeksini sakla
+            # Store index of last added polygon
             annotations = self.annotation_manager.get_annotations(image_path)
             self._pending_polygon_index = len(annotations.polygons) - 1
             
-            # Popup'u son noktanın yanında göster
+            # Show popup next to last point
             if points:
                 last_x, last_y = points[-1]
                 canvas = self.main_window.canvas_view
@@ -1681,17 +1674,17 @@ class LocalFlowApp(QMainWindow):
                 popup.navigate_requested.connect(self._on_popup_navigate)
                 popup.show_at(global_pos)
                 
-                # Aktif popup olarak kaydet ve son düzenleme türünü belirle
+                # Save as active popup and set last edit type
                 self._last_edit_type = "polygon"
                 self._active_popup = popup
                 
-                # Select moduna geç - polygon düzenlenebilsin
+                # Switch to Select mode - allow polygon editing
                 self.main_window.set_tool("select")
                 
                 self.statusbar.showMessage(self.tr("✓ AI Polygon created - Select class"))
     
     def _encode_current_image(self):
-        """Mevcut görseli SAM için encode et."""
+        """Encode current image for SAM."""
         import cv2
         import numpy as np
         
@@ -1702,7 +1695,7 @@ class LocalFlowApp(QMainWindow):
         if not self._sam_worker.is_model_loaded:
             return
         
-        # Görseli oku
+        # Read image
         try:
             img_data = np.frombuffer(open(image_path, 'rb').read(), np.uint8)
             image = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
@@ -1712,6 +1705,6 @@ class LocalFlowApp(QMainWindow):
             self.statusbar.showMessage(self.tr("❌ Could not read image: {}").format(e))
             return
         
-        # Encoding başlat
+        # Start encoding
         self._sam_worker.request_encode_image(image)
 

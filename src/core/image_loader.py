@@ -1,7 +1,7 @@
 """
-Görsel Yükleme
-==============
-Görselleri yükleme, önbellekleme ve lazy loading.
+Image Loader
+============
+Image loading, caching and lazy loading.
 """
 
 from pathlib import Path
@@ -12,14 +12,14 @@ from PySide6.QtCore import QSize
 
 class ImageLoader:
     """
-    Görsel yükleme ve önbellekleme sınıfı.
-    Lazy loading ile büyük veri setlerini destekler.
+    Image loading and caching class.
+    Supports large datasets with lazy loading.
     """
     
     def __init__(self, cache_size: int = 10):
         """
         Args:
-            cache_size: Önbellekte tutulacak maksimum görsel sayısı
+            cache_size: Max number of images to keep in cache
         """
         self._cache: dict[Path, QPixmap] = {}
         self._cache_order: list[Path] = []
@@ -27,26 +27,26 @@ class ImageLoader:
         
     def load(self, image_path: Path | str) -> Optional[QPixmap]:
         """
-        Bir görseli yükler (önbellekten veya diskten).
+        Loads an image (from cache or disk).
         
         Args:
-            image_path: Görsel dosyasının yolu
+            image_path: Path to image file
             
         Returns:
-            QPixmap nesnesi veya None (hata durumunda)
+            QPixmap object or None (if error)
         """
         path = Path(image_path)
         
-        # Önbellekte var mı kontrol et
+        # Check if in cache
         if path in self._cache:
             return self._cache[path]
             
-        # Diskten yükle
+        # Load from disk
         pixmap = QPixmap(str(path))
         if pixmap.isNull():
             return None
             
-        # Önbelleğe ekle
+        # Add to cache
         self._add_to_cache(path, pixmap)
         
         return pixmap
@@ -57,14 +57,14 @@ class ImageLoader:
         size: QSize = QSize(100, 100)
     ) -> Optional[QPixmap]:
         """
-        Görsel için küçültülmüş önizleme yükler.
+        Loads a scaled thumbnail for image.
         
         Args:
-            image_path: Görsel dosyasının yolu
-            size: Thumbnail boyutu
+            image_path: Path to image file
+            size: Thumbnail size
             
         Returns:
-            Küçültülmüş QPixmap
+            Scaled QPixmap
         """
         pixmap = self.load(image_path)
         if pixmap is None:
@@ -77,8 +77,8 @@ class ImageLoader:
         )
     
     def _add_to_cache(self, path: Path, pixmap: QPixmap):
-        """Önbelleğe görsel ekler, gerekirse eski öğeleri siler."""
-        # Önbellek dolu ise en eski öğeyi sil
+        """Adds image to cache, removes old items if needed."""
+        # If cache is full, remove oldest item
         if len(self._cache_order) >= self._cache_size:
             oldest = self._cache_order.pop(0)
             del self._cache[oldest]
@@ -87,7 +87,7 @@ class ImageLoader:
         self._cache_order.append(path)
         
     def clear_cache(self):
-        """Önbelleği temizler."""
+        """Clears cache."""
         self._cache.clear()
         self._cache_order.clear()
 

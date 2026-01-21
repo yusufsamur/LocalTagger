@@ -1,7 +1,7 @@
 """
-Sınıf Listesi Widget
-====================
-Etiket sınıflarını gösteren ve yöneten liste widget'ı.
+Class List Widget
+=================
+List widget for displaying and managing label classes.
 """
 
 from PySide6.QtWidgets import (
@@ -16,11 +16,11 @@ from core.class_manager import ClassManager, LabelClass
 
 class ClassListWidget(QWidget):
     """
-    Sınıf listesi widget'ı.
-    Sınıf ekleme, silme, renk değiştirme ve seçim işlemlerini yönetir.
+    Class list widget.
+    Manages adding, removing, changing color and selecting classes.
     """
     
-    # Sinyaller
+    # Signals
     class_selected = Signal(int)  # class_id
     class_added = Signal(int)     # class_id
     class_removed = Signal(int)   # class_id
@@ -35,12 +35,12 @@ class ClassListWidget(QWidget):
         self._connect_signals()
         
     def _setup_ui(self):
-        """Arayüzü oluştur."""
+        """Create UI."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
         
-        # Başlık ve butonlar
+        # Header and buttons
         header = QHBoxLayout()
         
         title = QLabel("🏷️ Sınıflar")
@@ -49,7 +49,7 @@ class ClassListWidget(QWidget):
         
         header.addStretch()
         
-        # Ekle butonu
+        # Add button
         self.add_btn = QPushButton("+")
         self.add_btn.setFixedSize(24, 24)
         self.add_btn.setToolTip("Yeni sınıf ekle")
@@ -57,52 +57,52 @@ class ClassListWidget(QWidget):
         
         layout.addLayout(header)
         
-        # Sınıf listesi
+        # Class list
         self.list_widget = QListWidget()
         self.list_widget.setAlternatingRowColors(True)
         self.list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         layout.addWidget(self.list_widget)
         
-        # Bilgi etiketi
+        # Info label
         self.info_label = QLabel("Sınıf yok")
         self.info_label.setStyleSheet("color: gray; font-size: 11px;")
         layout.addWidget(self.info_label)
         
     def _connect_signals(self):
-        """Sinyalleri bağla."""
+        """Connect signals."""
         self.add_btn.clicked.connect(self._on_add_clicked)
         self.list_widget.currentRowChanged.connect(self._on_selection_changed)
         self.list_widget.customContextMenuRequested.connect(self._show_context_menu)
         self.list_widget.itemDoubleClicked.connect(self._on_item_double_clicked)
         
     def refresh(self):
-        """Listeyi yenile."""
+        """Refresh list."""
         self.list_widget.clear()
         
         for cls in self._class_manager.classes:
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, cls.id)
             
-            # Renk ikonu oluştur
+            # Create color icon
             icon = self._create_color_icon(cls.color)
             item.setIcon(icon)
             item.setText(cls.name)
             
             self.list_widget.addItem(item)
             
-        # Bilgi güncelle
+        # Update info
         count = self._class_manager.count
         if count == 0:
             self.info_label.setText("Sınıf yok - '+' ile ekleyin")
         else:
             self.info_label.setText(f"{count} sınıf")
             
-        # Önceki seçimi koru
+        # Keep previous selection
         if self._selected_class_id >= 0:
             self._select_class_by_id(self._selected_class_id)
     
     def _create_color_icon(self, color_hex: str, size: int = 16) -> QIcon:
-        """Renk ikonu oluştur."""
+        """Create color icon."""
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.GlobalColor.transparent)
         
@@ -116,7 +116,7 @@ class ClassListWidget(QWidget):
         return QIcon(pixmap)
     
     def _select_class_by_id(self, class_id: int):
-        """ID'ye göre sınıfı seç."""
+        """Select class by ID."""
         for i in range(self.list_widget.count()):
             item = self.list_widget.item(i)
             if item.data(Qt.ItemDataRole.UserRole) == class_id:
@@ -124,7 +124,7 @@ class ClassListWidget(QWidget):
                 return
                 
     def get_selected_class(self) -> LabelClass | None:
-        """Seçili sınıfı döndür."""
+        """Returns selected class."""
         if self._selected_class_id < 0:
             return None
         return self._class_manager.get_by_id(self._selected_class_id)
@@ -134,7 +134,7 @@ class ClassListWidget(QWidget):
     # ─────────────────────────────────────────────────────────────────
     
     def _on_add_clicked(self):
-        """Yeni sınıf ekle."""
+        """Add new class."""
         name, ok = QInputDialog.getText(
             self, 
             "Yeni Sınıf", 
@@ -143,14 +143,14 @@ class ClassListWidget(QWidget):
         )
         
         if ok and name.strip():
-            # Renk seçimi (opsiyonel - otomatik atanabilir)
+            # Color selection (optional - can be assigned automatically)
             label_class = self._class_manager.add_class(name.strip())
             self.refresh()
             self._select_class_by_id(label_class.id)
             self.class_added.emit(label_class.id)
             
     def _on_selection_changed(self, row: int):
-        """Seçim değişti."""
+        """Selection changed."""
         if row < 0:
             self._selected_class_id = -1
             return
@@ -161,7 +161,7 @@ class ClassListWidget(QWidget):
             self.class_selected.emit(self._selected_class_id)
             
     def _on_item_double_clicked(self, item: QListWidgetItem):
-        """Çift tıklama - renk değiştir."""
+        """Double click - change color."""
         class_id = item.data(Qt.ItemDataRole.UserRole)
         label_class = self._class_manager.get_by_id(class_id)
         
@@ -178,7 +178,7 @@ class ClassListWidget(QWidget):
                 self.class_updated.emit(class_id)
     
     def _show_context_menu(self, pos):
-        """Sağ tık menüsü."""
+        """Right click menu."""
         item = self.list_widget.itemAt(pos)
         if not item:
             return
@@ -202,7 +202,7 @@ class ClassListWidget(QWidget):
             self._delete_class(class_id)
             
     def _rename_class(self, class_id: int):
-        """Sınıfı yeniden adlandır."""
+        """Rename class."""
         label_class = self._class_manager.get_by_id(class_id)
         if not label_class:
             return
@@ -220,7 +220,7 @@ class ClassListWidget(QWidget):
             self.class_updated.emit(class_id)
             
     def _change_color(self, class_id: int):
-        """Sınıf rengini değiştir."""
+        """Change class color."""
         label_class = self._class_manager.get_by_id(class_id)
         if not label_class:
             return
@@ -237,7 +237,7 @@ class ClassListWidget(QWidget):
             self.class_updated.emit(class_id)
             
     def _delete_class(self, class_id: int):
-        """Sınıfı sil."""
+        """Delete class."""
         label_class = self._class_manager.get_by_id(class_id)
         if not label_class:
             return

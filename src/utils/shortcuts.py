@@ -1,7 +1,7 @@
 """
-Klavye Kısayolları
+Keyboard Shortcuts
 ==================
-Uygulama genelinde klavye kısayolu yönetimi.
+Application-wide keyboard shortcut management.
 """
 
 from dataclasses import dataclass
@@ -13,30 +13,30 @@ from PySide6.QtWidgets import QWidget
 
 @dataclass
 class Shortcut:
-    """Bir klavye kısayolunu temsil eder."""
+    """Represents a keyboard shortcut."""
     key: str
     description: str
     callback: Callable
 
 
 class ShortcutManager:
-    """Klavye kısayollarını yönetir."""
+    """Manages keyboard shortcuts."""
     
-    # Varsayılan kısayollar
+    # Default shortcuts
     DEFAULTS = {
-        "open_folder": ("Ctrl+O", "Klasör Aç"),
-        "save": ("Ctrl+S", "Kaydet"),
-        "next_image": ("D", "Sonraki Görsel"),
-        "prev_image": ("A", "Önceki Görsel"),
-        "bbox_tool": ("W", "Bounding Box Aracı"),
-        "polygon_tool": ("E", "Polygon Aracı"),
-        "select_tool": ("Q", "Seçim Aracı"),
-        "zoom_in": ("Ctrl+=", "Yakınlaştır"),
-        "zoom_out": ("Ctrl+-", "Uzaklaştır"),
-        "zoom_fit": ("Ctrl+0", "Sığdır"),
-        "delete": ("Delete", "Seçili Etiketi Sil"),
-        "undo": ("Ctrl+Z", "Geri Al"),
-        "redo": ("Ctrl+Y", "Yinele"),
+        "open_folder": ("Ctrl+O", "Open Folder"),
+        "save": ("Ctrl+S", "Save"),
+        "next_image": ("D", "Next Image"),
+        "prev_image": ("A", "Previous Image"),
+        "bbox_tool": ("W", "Bounding Box Tool"),
+        "polygon_tool": ("E", "Polygon Tool"),
+        "select_tool": ("Q", "Select Tool"),
+        "zoom_in": ("Ctrl+=", "Zoom In"),
+        "zoom_out": ("Ctrl+-", "Zoom Out"),
+        "zoom_fit": ("Ctrl+0", "Fit to Screen"),
+        "delete": ("Delete", "Delete Selected Label"),
+        "undo": ("Ctrl+Z", "Undo"),
+        "redo": ("Ctrl+Y", "Redo"),
     }
     
     def __init__(self, parent: QWidget):
@@ -44,7 +44,7 @@ class ShortcutManager:
         self._shortcuts: Dict[str, QShortcut] = {}
         
     def register(self, name: str, callback: Callable):
-        """Bir kısayol kaydet."""
+        """Register a shortcut."""
         if name in self.DEFAULTS:
             key, desc = self.DEFAULTS[name]
             shortcut = QShortcut(QKeySequence(key), self._parent)
@@ -52,7 +52,7 @@ class ShortcutManager:
             self._shortcuts[name] = shortcut
             
     def unregister(self, name: str):
-        """Bir kısayolu kaldır."""
+        """Unregister a shortcut."""
         if name in self._shortcuts:
             self._shortcuts[name].deleteLater()
             del self._shortcuts[name]

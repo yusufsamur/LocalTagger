@@ -164,10 +164,10 @@ translations = {
     'Export cancelled': 'Export iptal edildi',
     'Export failed': 'Export başarısız',
     
-    # LocalFlowApp - Window Title
-    'LocalFlow v2.0 - Data Annotation Tool': 'LocalFlow v2.0 - Veri Etiketleme Aracı',
+    # LocalTaggerApp - Window Title
+    'LocalTagger - Data Annotation Tool': 'LocalTagger - Veri Etiketleme Aracı',
     
-    # LocalFlowApp - File Menu
+    # LocalTaggerApp - File Menu
     '&File': '&Dosya',
     'Open Folder...': 'Klasör Aç...',
     'Open File...': 'Dosya Aç...',
@@ -176,7 +176,7 @@ translations = {
     'Export...': 'Dışa Aktar...',
     'Exit': 'Çıkış',
     
-    # LocalFlowApp - Edit Menu
+    # LocalTaggerApp - Edit Menu
     '&Edit': '&Düzenle',
     '🏷️ Class Management...': '🏷️ Sınıf Yönetimi...',
     'Delete Selected Annotation': 'Seçili Etiketi Sil',
@@ -184,24 +184,24 @@ translations = {
     'Undo': 'Geri Al',
     'Redo': 'Yinele',
     
-    # LocalFlowApp - View Menu
+    # LocalTaggerApp - View Menu
     '&View': '&Görünüm',
     'Zoom In': 'Yakınlaştır',
     'Zoom Out': 'Uzaklaştır',
     'Fit to Window': 'Sığdır',
     'Actual Size': 'Gerçek Boyut',
     
-    # LocalFlowApp - Language Menu
+    # LocalTaggerApp - Language Menu
     '&Language': '&Dil',
     'English': 'English',
     'Türkçe': 'Türkçe',
     
-    # LocalFlowApp - Help Menu
+    # LocalTaggerApp - Help Menu
     '&Help': '&Yardım',
-    'About LocalFlow': 'LocalFlow Hakkında',
+    'About LocalTagger': 'LocalTagger Hakkında',
     'About': 'Hakkında',
     
-    # LocalFlowApp - Status Messages
+    # LocalTaggerApp - Status Messages
     'Ready - Press Ctrl+O to open a folder': 'Hazır - Klasör açmak için Ctrl+O tuşlarına basın',
     'The language will be fully applied after restarting the application.': 'Dil, uygulama yeniden başlatıldıktan sonra tam olarak uygulanacaktır.',
     '✓ BBox added: {}': '✓ BBox eklendi: {}',
@@ -247,7 +247,7 @@ translations = {
     'Language changed to {}. Please restart the application.': 'Dil {} olarak değiştirildi. Lütfen uygulamayı yeniden başlatın.',
     
     # About dialog content
-    'LocalFlow - Data Annotation Tool': 'LocalFlow - Veri Etiketleme Aracı',
+    'LocalTagger - Data Annotation Tool': 'LocalTagger - Veri Etiketleme Aracı',
     'Version 2.0': 'Versiyon 2.0',
     'A powerful data annotation tool for machine learning datasets.': 'Makine öğrenmesi veri setleri için güçlü bir veri etiketleme aracı.',
     
@@ -277,7 +277,7 @@ translations = {
     # Export dialog - multiplier options
     '{}x → {} images (1 original + {} augmented)': '{}x → {} görsel (1 orijinal + {} augmented)',
     # Export dialog - export summary
-    '📊 Total {} images to export': '📊 Toplam {} görsel export edilecek',
+    '📊 Total {} images to export': '📊 Toplam {} görsel dışa aktarılacak',
     
     # Class selector popup
     'Select Class (1-9 or Enter)': 'Sınıf Seç (1-9 veya Enter)',
@@ -386,79 +386,63 @@ multiline_translations = {
         "Çevirme: Görüntüyü aynalar.\n\n• Yatay: Sol-sağ aynalama\n• Dikey: Üst-alt aynalama\n• Yüzde: Uygulama olasılığı\n\nSimetrik nesneler ve farklı görüş açıları için genelleme sağlar.",
 
     # About Dialog HTML Content (Unescaped because ElementTree unescapes source.text)
-    '''<h2>LocalFlow v2.0</h2>
-<p><b>AI-Powered Data Annotation Tool</b></p>
+    '''<h2>LocalTagger</h2>
+<p><b>Professional Data Annotation Tool</b></p>
+<p>LocalTagger is a high-performance, privacy-centric application designed for efficient local data annotation. It integrates advanced AI capabilities with a robust manual labeling interface.</p>
 
-<h3>🤖 AI Features (MobileSAM)</h3>
+<h3>Key Features</h3>
 <ul>
-<li>Press <b>T</b> to enable AI</li>
-<li>Click → Automatic BBox or Polygon</li>
-<li>Runs in background, UI stays responsive</li>
+<li><b>Secure & Local:</b> Operates entirely offline to ensure maximum data privacy.</li>
+<li><b>AI Assistance:</b> Integrated MobileSAM model for automated object segmentation.</li>
+<li><b>Multi-Format Export:</b> Supports YOLO, COCO, and Pascal VOC standards with built-in data augmentation.</li>
 </ul>
 
-<h3>⌨️ Shortcuts</h3>
-<table>
-<tr><td><b>T</b></td><td>AI Toggle</td><td><b>W</b></td><td>Draw BBox</td></tr>
-<tr><td><b>E</b></td><td>Draw Polygon</td><td><b>Q</b></td><td>Select/Edit</td></tr>
-<tr><td><b>A/D</b></td><td>Change Image</td><td><b>Ctrl+S</b></td><td>Save</td></tr>
-<tr><td><b>Ctrl+E</b></td><td>Export</td><td><b>Del</b></td><td>Delete</td></tr>
-<tr><td><b>ESC</b></td><td>Cancel</td><td></td><td></td></tr>
+<h3>Usage Guide</h3>
+<p>To start annotating, load a folder of images using the File menu. Select a class from the list or create a new one.</p>
+<ul>
+<li><b>Drawing:</b> Use the Toolbar or shortcuts to switch between Bounding Box and Polygon modes.</li>
+<li><b>Editing:</b> Switch to Select Mode to adjust existing annotations. Double-click a label to modify its class.</li>
+<li><b>AI Mode:</b> Enable AI to automatically segment and annotate objects with a single click.</li>
+</ul>
+
+<h3>Keyboard Shortcuts</h3>
+<table width="100%" cellspacing="4">
+<tr><td><b>W</b></td><td>Bounding Box Tool</td><td><b>E</b></td><td>Polygon Tool</td></tr>
+<tr><td><b>Q</b></td><td>Select/Edit Tool</td><td><b>T</b></td><td>Toggle AI Mode</td></tr>
+<tr><td><b>A / D</b></td><td>Previous / Next Image</td><td><b>Del</b></td><td>Delete Selected</td></tr>
+<tr><td><b>Ctrl+S</b></td><td>Save Changes</td><td><b>Ctrl+E</b></td><td>Export Data</td></tr>
 </table>
 
-<h3>📦 Export Formats</h3>
-<ul>
-<li><b>YOLO</b>: v5, v6, v7, v8, v9, v10, v11</li>
-<li><b>COCO</b>: JSON format (with segmentation)</li>
-<li><b>Pascal VOC</b>: XML format</li>
-<li><b>Custom</b>: Custom TXT or JSON format</li>
-</ul>
-
-<h3>💡 Tips</h3>
-<ul>
-<li>BBox/Polygon: Double-click = change class</li>
-<li>Q mode: Select, move, resize from corners</li>
-<li>Labels are automatically saved to labels/ folder</li>
-<li>In AI mode, click on object for auto segmentation!</li>
-</ul>
-
-<p style="color: gray; font-size: 10px;">© 2026 LocalFlow</p>
+<p style="color: grey; font-size: 10px; margin-top: 15px;">© 2026 LocalTagger</p>
 ''': 
-    '''<h2>LocalFlow v2.0</h2>
-<p><b>Yapay Zeka Destekli Veri Etiketleme Aracı</b></p>
+    '''<h2>LocalTagger</h2>
+<p><b>Profesyonel Veri Etiketleme Aracı</b></p>
+<p>LocalTagger, verimli yerel veri etiketleme için tasarlanmış, yüksek performanslı ve gizlilik odaklı bir uygulamadır. Gelişmiş yapay zeka yeteneklerini güçlü bir manuel etiketleme arayüzü ile birleştirir.</p>
 
-<h3>🤖 AI Özellikleri (MobileSAM)</h3>
+<h3>Temel Özellikler</h3>
 <ul>
-<li>AI Aktif/Pasif: <b>T</b> tuşu</li>
-<li>Tıkla → Otomatik BBox veya Polygon</li>
-<li>Arka planda çalışır, arayüz takılmaz</li>
+<li><b>Güvenli ve Yerel:</b> Maksimum veri gizliliği sağlamak için tamamen çevrimdışı çalışır.</li>
+<li><b>Yapay Zeka Desteği:</b> Otomatik nesne segmentasyonu için entegre MobileSAM modeli.</li>
+<li><b>Çoklu Format Desteği:</b> Dahili veri artırma özellikleri ile YOLO, COCO ve Pascal VOC standartlarını destekler.</li>
 </ul>
 
-<h3>⌨️ Kısayollar</h3>
-<table>
-<tr><td><b>T</b></td><td>AI Aç/Kapa</td><td><b>W</b></td><td>BBox Çiz</td></tr>
-<tr><td><b>E</b></td><td>Polygon Çiz</td><td><b>Q</b></td><td>Seç/Düzenle</td></tr>
-<tr><td><b>A/D</b></td><td>Görsel Değiştir</td><td><b>Ctrl+S</b></td><td>Kaydet</td></tr>
-<tr><td><b>Ctrl+E</b></td><td>Dışa Aktar</td><td><b>Del</b></td><td>Sil</td></tr>
-<tr><td><b>ESC</b></td><td>İptal</td><td></td><td></td></tr>
+<h3>Kullanım Kılavuzu</h3>
+<p>Etiketlemeye başlamak için Dosya menüsünden bir görsel klasörü yükleyin. Listeden bir sınıf seçin veya yeni bir sınıf oluşturun.</p>
+<ul>
+<li><b>Çizim:</b> Sınırlayıcı Kutu (BBox) ve Çokgen (Polygon) modları arasında geçiş yapmak için araç çubuğunu veya kısayolları kullanın.</li>
+<li><b>Düzenleme:</b> Mevcut etiketleri ayarlamak için Seçim Moduna geçin. Sınıfını değiştirmek için etikete çift tıklayın.</li>
+<li><b>AI Modu:</b> Nesneleri tek tıkla otomatik olarak segmentlere ayırmak ve etiketlemek için AI modunu etkinleştirin.</li>
+</ul>
+
+<h3>Klavye Kısayolları</h3>
+<table width="100%" cellspacing="4">
+<tr><td><b>W</b></td><td>Kutu (BBox) Aracı</td><td><b>E</b></td><td>Çokgen Aracı</td></tr>
+<tr><td><b>Q</b></td><td>Seçim/Düzenleme Aracı</td><td><b>T</b></td><td>AI Modu Aç/Kapa</td></tr>
+<tr><td><b>A / D</b></td><td>Önceki / Sonraki Görsel</td><td><b>Del</b></td><td>Seçiliyi Sil</td></tr>
+<tr><td><b>Ctrl+S</b></td><td>Değişiklikleri Kaydet</td><td><b>Ctrl+E</b></td><td>Veri Dışa Aktar</td></tr>
 </table>
 
-<h3>📦 Export Formatları</h3>
-<ul>
-<li><b>YOLO</b>: v5, v6, v7, v8, v9, v10, v11</li>
-<li><b>COCO</b>: JSON formatı (segmentasyonlu)</li>
-<li><b>Pascal VOC</b>: XML formatı</li>
-<li><b>Custom</b>: Özel TXT veya JSON formatı</li>
-</ul>
-
-<h3>💡 İpuçları</h3>
-<ul>
-<li>BBox/Polygon: Çift tıkla = sınıf değiştir</li>
-<li>Q modu: Seç, taşı, köşelerden boyutlandır</li>
-<li>Etiketler labels/ klasörüne otomatik kaydedilir</li>
-<li>AI modunda, otomatik segmentasyon için nesneye tıkla!</li>
-</ul>
-
-<p style="color: gray; font-size: 10px;">© 2026 LocalFlow</p>
+<p style="color: grey; font-size: 10px; margin-top: 15px;">© 2026 LocalTagger</p>
 ''',
 
     # Delete confirmation multiline

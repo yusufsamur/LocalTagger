@@ -1,8 +1,8 @@
 """
-SAM Worker Modülü
+SAM Worker Module
 =================
-QThread tabanlı asenkron SAM işlemleri.
-UI donmasını önlemek için encoding ve inference background thread'de yapılır.
+QThread based asynchronous SAM operations.
+Encoding and inference are performed in a background thread to prevent UI freezing.
 """
 
 from pathlib import Path
@@ -16,16 +16,16 @@ from .sam_inferencer import SAMInferencer
 
 class SAMWorker(QThread):
     """
-    Background thread'de SAM işlemleri.
+    SAM operations in background thread.
     
     Signals:
-        model_loaded: Modeller başarıyla yüklendi
-        model_load_failed: Model yükleme hatası (error_message)
-        encoding_started: Görsel encoding başladı
-        encoding_finished: Görsel encoding tamamlandı
-        inference_started: Inference başladı
-        mask_ready: Maske hazır (mask, mode, x, y)
-        error_occurred: Hata oluştu (error_message)
+        model_loaded: Models successfully loaded
+        model_load_failed: Model loading error (error_message)
+        encoding_started: Image encoding started
+        encoding_finished: Image encoding finished
+        inference_started: Inference started
+        mask_ready: Mask ready (mask, mode, x, y)
+        error_occurred: Error occurred (error_message)
     """
     
     # Signals
@@ -48,19 +48,19 @@ class SAMWorker(QThread):
         self._running = True
         
     def set_model_paths(self, encoder_path: str, decoder_path: str):
-        """Model yollarını ayarla."""
+        """Set model paths."""
         with QMutexLocker(self._mutex):
             self._inferencer = SAMInferencer(encoder_path, decoder_path)
     
     def request_load_models(self):
-        """Model yükleme isteği (async)."""
+        """Request model loading (async)."""
         with QMutexLocker(self._mutex):
             self._task = ("load",)
         if not self.isRunning():
             self.start()
     
     def request_encode_image(self, image: np.ndarray):
-        """Görsel encoding isteği (async)."""
+        """Request image encoding (async)."""
         with QMutexLocker(self._mutex):
             self._task = ("encode", image.copy())
         if not self.isRunning():
@@ -68,11 +68,11 @@ class SAMWorker(QThread):
     
     def request_infer_point(self, x: int, y: int, mode: str):
         """
-        Point inference isteği (async).
+        Request point inference (async).
         
         Args:
-            x, y: Tıklanan koordinatlar
-            mode: "bbox" veya "polygon"
+            x, y: Clicked coordinates
+            mode: "bbox" or "polygon"
         """
         with QMutexLocker(self._mutex):
             self._task = ("infer", x, y, mode)
@@ -81,12 +81,12 @@ class SAMWorker(QThread):
     
     def request_infer_box(self, x1: int, y1: int, x2: int, y2: int, mode: str = "polygon"):
         """
-        Box inference isteği (async) - bbox'tan segmentasyon.
+        Request box inference (async) - segmentation from bbox.
         
         Args:
-            x1, y1: Sol üst köşe
-            x2, y2: Sağ alt köşe
-            mode: 'bbox' veya 'polygon' - sonuç türü
+            x1, y1: Top-left corner
+            x2, y2: Bottom-right corner
+            mode: 'bbox' or 'polygon' - result type
         """
         with QMutexLocker(self._mutex):
             self._task = ("infer_box", x1, y1, x2, y2, mode)
@@ -95,7 +95,7 @@ class SAMWorker(QThread):
     
     @property
     def is_ready(self) -> bool:
-        """Model yüklü ve embedding hazır mı?"""
+        """Are models loaded and embedding ready?"""
         with QMutexLocker(self._mutex):
             if self._inferencer is None:
                 return False
@@ -103,14 +103,14 @@ class SAMWorker(QThread):
     
     @property
     def is_model_loaded(self) -> bool:
-        """Sadece model yüklü mü?"""
+        """Are models loaded?"""
         with QMutexLocker(self._mutex):
             if self._inferencer is None:
                 return False
             return self._inferencer.is_loaded
     
     def run(self):
-        """Thread ana döngüsü."""
+        """Thread main loop."""
         while self._running:
             task = None
             
@@ -120,7 +120,7 @@ class SAMWorker(QThread):
                     self._task = None
             
             if task is None:
-                # Görev yoksa thread'i durdur
+                # Stop thread if no task
                 break
             
             try:
@@ -136,11 +136,11 @@ class SAMWorker(QThread):
                 self.error_occurred.emit(str(e))
     
     def _do_load_models(self):
-        """Model yükleme işlemi."""
+        """Model loading operation."""
         try:
             with QMutexLocker(self._mutex):
                 if self._inferencer is None:
-                    self.model_load_failed.emit("Inferencer ayarlanmadı!")
+                    self.model_load_failed.emit("Inferencer not set!")
                     return
                 self._inferencer.load_models()
             self.model_loaded.emit()
@@ -148,66 +148,66 @@ class SAMWorker(QThread):
             self.model_load_failed.emit(str(e))
     
     def _do_encode_image(self, image: np.ndarray):
-        """Görsel encoding işlemi."""
+        """Image encoding operation."""
         self.encoding_started.emit()
         try:
             with QMutexLocker(self._mutex):
                 if self._inferencer is None or not self._inferencer.is_loaded:
-                    self.error_occurred.emit("Model yüklenmedi!")
+                    self.error_occurred.emit("Models not loaded!")
                     return
                 self._inferencer.set_image(image)
             self.encoding_finished.emit()
         except Exception as e:
-            self.error_occurred.emit(f"Encoding hatası: {e}")
+            self.error_occurred.emit(f"Encoding error: {e}")
     
     def _do_infer_point(self, x: int, y: int, mode: str):
-        """Point inference işlemi."""
+        """Point inference operation."""
         self.inference_started.emit()
         try:
             with QMutexLocker(self._mutex):
                 if self._inferencer is None or not self._inferencer.has_embedding:
-                    self.error_occurred.emit("Görsel encoding yapılmadı!")
+                    self.error_occurred.emit("Image encoding not done!")
                     return
                 mask = self._inferencer.infer_point(x, y)
             self.mask_ready.emit(mask, mode, x, y)
         except Exception as e:
-            self.error_occurred.emit(f"Inference hatası: {e}")
+            self.error_occurred.emit(f"Inference error: {e}")
     
     def _do_infer_box(self, x1: int, y1: int, x2: int, y2: int, mode: str):
-        """Box inference işlemi."""
+        """Box inference operation."""
         self.inference_started.emit()
         try:
             with QMutexLocker(self._mutex):
                 if self._inferencer is None or not self._inferencer.has_embedding:
-                    self.error_occurred.emit("Görsel encoding yapılmadı!")
+                    self.error_occurred.emit("Image encoding not done!")
                     return
                 mask = self._inferencer.infer_box(x1, y1, x2, y2)
-            # mode'a göre bbox veya polygon olarak sonuç dön
+            # Return result as bbox or polygon based on mode
             self.mask_ready.emit(mask, mode, x1, y1)
         except Exception as e:
-            self.error_occurred.emit(f"Box inference hatası: {e}")
+            self.error_occurred.emit(f"Box inference error: {e}")
     
     def get_bbox_from_mask(self, mask: np.ndarray):
-        """Maske'den bbox çıkar (main thread'den çağrılabilir)."""
+        """Extract bbox from mask (can be called from main thread)."""
         with QMutexLocker(self._mutex):
             if self._inferencer is not None:
                 return self._inferencer.mask_to_bbox(mask)
         return None
     
     def get_polygon_from_mask(self, mask: np.ndarray):
-        """Maske'den polygon çıkar (main thread'den çağrılabilir)."""
+        """Extract polygon from mask (can be called from main thread)."""
         with QMutexLocker(self._mutex):
             if self._inferencer is not None:
                 return self._inferencer.mask_to_polygon(mask)
         return None
     
     def stop(self):
-        """Thread'i durdur."""
+        """Stop thread."""
         self._running = False
         self.wait()
     
     def clear_embedding(self):
-        """Embedding cache'i temizle."""
+        """Clear embedding cache."""
         with QMutexLocker(self._mutex):
             if self._inferencer is not None:
                 self._inferencer.clear_embedding()

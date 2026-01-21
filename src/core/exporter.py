@@ -1,7 +1,7 @@
 """
-Exporter Modülü
+Exporter Module
 ===============
-Çeşitli formatlarda annotation export işlemleri.
+Annotation export operations in various formats.
 """
 
 from abc import ABC, abstractmethod
@@ -15,18 +15,18 @@ from .class_manager import ClassManager
 
 
 class BaseExporter(ABC):
-    """Temel exporter sınıfı."""
+    """Base exporter class."""
     
     def __init__(self, class_manager: ClassManager):
         self.class_manager = class_manager
         self.progress_callback: Optional[Callable[[int, int], None]] = None
     
     def set_progress_callback(self, callback: Callable[[int, int], None]):
-        """İlerleme callback'i ayarlar. callback(current, total)"""
+        """Sets progress callback. callback(current, total)"""
         self.progress_callback = callback
     
     def _report_progress(self, current: int, total: int):
-        """İlerleme bildir."""
+        """Report progress."""
         if self.progress_callback:
             self.progress_callback(current, total)
     
@@ -38,27 +38,27 @@ class BaseExporter(ABC):
         image_files: List[Path]
     ) -> int:
         """
-        Annotasyonları export eder.
+        Exports annotations.
         
         Args:
             annotations_dict: {image_path: ImageAnnotations}
-            output_dir: Çıktı klasörü
-            image_files: Görsel dosya listesi
+            output_dir: Output directory
+            image_files: List of image files
             
         Returns:
-            Export edilen dosya sayısı
+            Count of exported files
         """
         pass
     
     @abstractmethod
     def get_format_name(self) -> str:
-        """Format adını döndürür."""
+        """Returns format name."""
         pass
 
 
 class YOLOExporter(BaseExporter):
     """
-    YOLO formatında export (v5-v11 aynı format).
+    Export in YOLO format (v5-v11 same format).
     
     BBox: class_id x_center y_center width height
     Polygon: class_id x1 y1 x2 y2 x3 y3 ...
@@ -66,7 +66,7 @@ class YOLOExporter(BaseExporter):
     
     def __init__(self, class_manager: ClassManager, version: str = "v8"):
         super().__init__(class_manager)
-        self.version = version  # Bilgi amaçlı, format aynı
+        self.version = version  # For info, format is same
     
     def get_format_name(self) -> str:
         return f"YOLO {self.version}"
@@ -92,18 +92,18 @@ class YOLOExporter(BaseExporter):
                     image_height=0
                 )
             
-            # TXT dosyası oluştur
+            # Create TXT file
             txt_path = output_dir / f"{image_path.stem}.txt"
             lines = []
             
-            # BBox'ları yaz
+            # Write BBoxes
             for bbox in annotations.bboxes:
                 lines.append(
                     f"{bbox.class_id} {bbox.x_center:.6f} {bbox.y_center:.6f} "
                     f"{bbox.width:.6f} {bbox.height:.6f}"
                 )
             
-            # Polygon'ları yaz
+            # Write Polygons
             for polygon in annotations.polygons:
                 if len(polygon.points) >= 3:
                     points_str = " ".join(
@@ -117,13 +117,13 @@ class YOLOExporter(BaseExporter):
             count += 1
             self._report_progress(i + 1, total)
         
-        # classes.txt kaydet
+        # Save classes.txt
         self._save_classes_txt(output_dir)
         
         return count
     
     def _save_classes_txt(self, output_dir: Path):
-        """classes.txt dosyasını kaydet."""
+        """Save classes.txt file."""
         classes_path = output_dir / "classes.txt"
         lines = []
         for cls in self.class_manager.classes:
@@ -134,9 +134,9 @@ class YOLOExporter(BaseExporter):
 
 class COCOExporter(BaseExporter):
     """
-    COCO JSON formatında export.
+    Export in COCO JSON format.
     
-    Yapı:
+    Structure:
     {
         "info": {...},
         "licenses": [...],
@@ -159,7 +159,7 @@ class COCOExporter(BaseExporter):
         
         coco_data = {
             "info": {
-                "description": "LocalFlow Export",
+                "description": "LocalTagger Export",
                 "version": "1.0",
                 "year": datetime.datetime.now().year,
                 "date_created": datetime.datetime.now().isoformat()
@@ -170,7 +170,7 @@ class COCOExporter(BaseExporter):
             "annotations": []
         }
         
-        # Kategorileri ekle
+        # Add categories
         for cls in self.class_manager.classes:
             coco_data["categories"].append({
                 "id": cls.id,
@@ -194,7 +194,7 @@ class COCOExporter(BaseExporter):
             
             image_id = i + 1
             
-            # Image bilgisi
+            # Image info
             coco_data["images"].append({
                 "id": image_id,
                 "file_name": image_path.name,
@@ -205,9 +205,9 @@ class COCOExporter(BaseExporter):
             img_w = annotations.image_width or 1
             img_h = annotations.image_height or 1
             
-            # BBox annotasyonları
+            # BBox annotations
             for bbox in annotations.bboxes:
-                # COCO bbox: [x, y, width, height] (sol üst köşe + boyut)
+                # COCO bbox: [x, y, width, height] (top-left corner + size)
                 x = (bbox.x_center - bbox.width / 2) * img_w
                 y = (bbox.y_center - bbox.height / 2) * img_h
                 w = bbox.width * img_w
@@ -224,7 +224,7 @@ class COCOExporter(BaseExporter):
                 })
                 annotation_id += 1
             
-            # Polygon annotasyonları (segmentation)
+            # Polygon annotations (segmentation)
             for polygon in annotations.polygons:
                 if len(polygon.points) >= 3:
                     # Segmentation: [x1, y1, x2, y2, ...] (flat list)
@@ -235,14 +235,14 @@ class COCOExporter(BaseExporter):
                             round(y * img_h, 2)
                         ])
                     
-                    # Bounding box hesapla
+                    # Calculate bounding box
                     xs = [p[0] * img_w for p in polygon.points]
                     ys = [p[1] * img_h for p in polygon.points]
                     x_min, x_max = min(xs), max(xs)
                     y_min, y_max = min(ys), max(ys)
                     w = x_max - x_min
                     h = y_max - y_min
-                    area = w * h  # Yaklaşık alan
+                    area = w * h  # Approximate area
                     
                     coco_data["annotations"].append({
                         "id": annotation_id,
@@ -257,7 +257,7 @@ class COCOExporter(BaseExporter):
             
             self._report_progress(i + 1, total)
         
-        # JSON dosyasını kaydet
+        # Save JSON file
         json_path = output_dir / "annotations.json"
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(coco_data, f, indent=2, ensure_ascii=False)
@@ -267,12 +267,12 @@ class COCOExporter(BaseExporter):
 
 class CustomTXTExporter(BaseExporter):
     """
-    Kullanıcı tanımlı TXT formatında export.
+    Export in User Defined TXT format.
     
-    Desteklenen placeholderlar:
+    Supported placeholders:
     - {class_id}, {class_name}
     - {x_center}, {y_center}, {width}, {height}
-    - {x1}, {y1}, {x2}, {y2} (normalize köşeler)
+    - {x1}, {y1}, {x2}, {y2} (normalized corners)
     - {x1_pixel}, {y1_pixel}, {x2_pixel}, {y2_pixel}
     """
     
@@ -310,15 +310,15 @@ class CustomTXTExporter(BaseExporter):
             img_w = annotations.image_width or 1
             img_h = annotations.image_height or 1
             
-            # BBox'ları yaz
+            # Write BBoxes
             for bbox in annotations.bboxes:
                 line = self._format_bbox(bbox, img_w, img_h)
                 lines.append(line)
             
-            # Polygon'ları BBox olarak yaz (bounding box)
+            # Write Polygons as BBox (bounding box)
             for polygon in annotations.polygons:
                 if len(polygon.points) >= 3:
-                    # Polygon'u bounding box'a çevir
+                    # Convert Polygon to bounding box
                     xs = [p[0] for p in polygon.points]
                     ys = [p[1] for p in polygon.points]
                     x_min, x_max = min(xs), max(xs)
@@ -343,24 +343,24 @@ class CustomTXTExporter(BaseExporter):
         return count
     
     def _format_bbox(self, bbox: BoundingBox, img_w: int, img_h: int) -> str:
-        """Format string'e göre bbox'ı formatla."""
-        # Köşe koordinatları (normalize)
+        """Format bbox according to format string."""
+        # Corner coordinates (normalized)
         x1 = bbox.x_center - bbox.width / 2
         y1 = bbox.y_center - bbox.height / 2
         x2 = bbox.x_center + bbox.width / 2
         y2 = bbox.y_center + bbox.height / 2
         
-        # Piksel koordinatları
+        # Pixel coordinates
         x1_pixel = int(x1 * img_w)
         y1_pixel = int(y1 * img_h)
         x2_pixel = int(x2 * img_w)
         y2_pixel = int(y2 * img_h)
         
-        # Sınıf adı
+        # Class name
         label_class = self.class_manager.get_by_id(bbox.class_id)
         class_name = label_class.name if label_class else str(bbox.class_id)
         
-        # Format string'i doldur
+        # Fill format string
         return self.format_string.format(
             class_id=bbox.class_id,
             class_name=class_name,
@@ -381,14 +381,14 @@ class CustomTXTExporter(BaseExporter):
 
 class CustomJSONExporter(BaseExporter):
     """
-    Kullanıcı tanımlı JSON şablonuna göre export.
+    Export based on User Defined JSON template.
     
-    Şablon içinde desteklenen placeholderlar:
+    Supported placeholders in template:
     - {{class_id}}, {{class_name}}
     - {{x_center}}, {{y_center}}, {{width}}, {{height}}
     - {{x1}}, {{y1}}, {{x2}}, {{y2}}
     - {{image_path}}, {{image_width}}, {{image_height}}
-    - {{annotations}} - Annotation listesi için özel marker
+    - {{annotations}} - Special marker for Annotation list
     """
     
     def __init__(self, class_manager: ClassManager, template: Dict[str, Any]):
@@ -408,7 +408,7 @@ class CustomJSONExporter(BaseExporter):
         
         result = {
             "info": {
-                "description": "LocalFlow Custom Export",
+                "description": "LocalTagger Custom Export",
                 "date": datetime.datetime.now().isoformat()
             },
             "images": []
@@ -437,12 +437,12 @@ class CustomJSONExporter(BaseExporter):
                 "annotations": []
             }
             
-            # BBox'lar
+            # BBoxes
             for bbox in annotations.bboxes:
                 ann_data = self._format_annotation(bbox, img_w, img_h)
                 image_data["annotations"].append(ann_data)
             
-            # Polygon'lar
+            # Polygons
             for polygon in annotations.polygons:
                 if len(polygon.points) >= 3:
                     ann_data = self._format_polygon(polygon, img_w, img_h)
@@ -451,7 +451,7 @@ class CustomJSONExporter(BaseExporter):
             result["images"].append(image_data)
             self._report_progress(i + 1, total)
         
-        # JSON dosyasını kaydet
+        # Save JSON file
         json_path = output_dir / "custom_annotations.json"
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
@@ -459,11 +459,11 @@ class CustomJSONExporter(BaseExporter):
         return len(image_files)
     
     def _format_annotation(self, bbox: BoundingBox, img_w: int, img_h: int) -> Dict:
-        """BBox için annotation formatla."""
+        """Format annotation for BBox."""
         label_class = self.class_manager.get_by_id(bbox.class_id)
         class_name = label_class.name if label_class else str(bbox.class_id)
         
-        # Köşe koordinatları
+        # Corner coordinates
         x1 = bbox.x_center - bbox.width / 2
         y1 = bbox.y_center - bbox.height / 2
         x2 = bbox.x_center + bbox.width / 2
@@ -488,11 +488,11 @@ class CustomJSONExporter(BaseExporter):
         }
     
     def _format_polygon(self, polygon: Polygon, img_w: int, img_h: int) -> Dict:
-        """Polygon için annotation formatla."""
+        """Format annotation for Polygon."""
         label_class = self.class_manager.get_by_id(polygon.class_id)
         class_name = label_class.name if label_class else str(polygon.class_id)
         
-        # Normalize ve piksel koordinatları
+        # Normalized and pixel coordinates
         points_normalized = [
             {"x": round(x, 6), "y": round(y, 6)} 
             for x, y in polygon.points
@@ -502,7 +502,7 @@ class CustomJSONExporter(BaseExporter):
             for x, y in polygon.points
         ]
         
-        # Bounding box hesapla
+        # Calculate bounding box
         xs = [p[0] for p in polygon.points]
         ys = [p[1] for p in polygon.points]
         

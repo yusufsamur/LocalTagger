@@ -696,7 +696,7 @@ farklı görüş açılarından genelleme öğretir.</translation>
     <message>
         <location filename="../ui/dialogs/export_dialog_v2.py" line="1535" />
         <source>📊 Total {} images to export</source>
-        <translation>📊 Toplam {} görsel export edilecek</translation>
+        <translation>📊 Toplam {} görsel dışa aktarılacak</translation>
     </message>
     <message>
         <location filename="../ui/dialogs/export_dialog_v2.py" line="1707" />
@@ -738,9 +738,13 @@ Konum: {}</translation>
 <context>
     <name>LocalFlowApp</name>
     <message>
-        <location filename="../app.py" line="30" />
         <source>LocalFlow v2.0 - Data Annotation Tool</source>
-        <translation>LocalFlow v2.0 - Veri Etiketleme Aracı</translation>
+        <translation type="vanished">LocalFlow v2.0 - Veri Etiketleme Aracı</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="30" />
+        <source>LocalTagger - Data Annotation Tool</source>
+        <translation>LocalTagger - Veri Etiketleme Aracı</translation>
     </message>
     <message>
         <location filename="../app.py" line="81" />
@@ -1124,6 +1128,311 @@ Bu işlem geri alınamaz!</translation>
     </message>
     <message>
         <location filename="../app.py" line="1409" />
+        <source>&lt;h2&gt;LocalTagger&lt;/h2&gt;
+&lt;p&gt;&lt;b&gt;Professional Data Annotation Tool&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;LocalTagger is a high-performance, privacy-centric application designed for efficient local data annotation. It integrates advanced AI capabilities with a robust manual labeling interface.&lt;/p&gt;
+
+&lt;h3&gt;Key Features&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Secure &amp; Local:&lt;/b&gt; Operates entirely offline to ensure maximum data privacy.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Assistance:&lt;/b&gt; Integrated MobileSAM model for automated object segmentation.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Multi-Format Export:&lt;/b&gt; Supports YOLO, COCO, and Pascal VOC standards with built-in data augmentation.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Usage Guide&lt;/h3&gt;
+&lt;p&gt;To start annotating, load a folder of images using the File menu. Select a class from the list or create a new one.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Drawing:&lt;/b&gt; Use the Toolbar or shortcuts to switch between Bounding Box and Polygon modes.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Editing:&lt;/b&gt; Switch to Select Mode to adjust existing annotations. Double-click a label to modify its class.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Mode:&lt;/b&gt; Enable AI to automatically segment and annotate objects with a single click.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Keyboard Shortcuts&lt;/h3&gt;
+&lt;table width="100%" cellspacing="4"&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;W&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Bounding Box Tool&lt;/td&gt;&lt;td&gt;&lt;b&gt;E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Polygon Tool&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Q&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Select/Edit Tool&lt;/td&gt;&lt;td&gt;&lt;b&gt;T&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Toggle AI Mode&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;A / D&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Previous / Next Image&lt;/td&gt;&lt;td&gt;&lt;b&gt;Del&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Delete Selected&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ctrl+S&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Save Changes&lt;/td&gt;&lt;td&gt;&lt;b&gt;Ctrl+E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Export Data&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p style="color: grey; font-size: 10px; margin-top: 15px;"&gt;© 2026 LocalTagger&lt;/p&gt;
+</source>
+        <translation>&lt;h2&gt;LocalTagger&lt;/h2&gt;
+&lt;p&gt;&lt;b&gt;Profesyonel Veri Etiketleme Aracı&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;LocalTagger, verimli yerel veri etiketleme için tasarlanmış, yüksek performanslı ve gizlilik odaklı bir uygulamadır. Gelişmiş yapay zeka yeteneklerini güçlü bir manuel etiketleme arayüzü ile birleştirir.&lt;/p&gt;
+
+&lt;h3&gt;Temel Özellikler&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Güvenli ve Yerel:&lt;/b&gt; Maksimum veri gizliliği sağlamak için tamamen çevrimdışı çalışır.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Yapay Zeka Desteği:&lt;/b&gt; Otomatik nesne segmentasyonu için entegre MobileSAM modeli.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Çoklu Format Desteği:&lt;/b&gt; Dahili veri artırma özellikleri ile YOLO, COCO ve Pascal VOC standartlarını destekler.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Kullanım Kılavuzu&lt;/h3&gt;
+&lt;p&gt;Etiketlemeye başlamak için Dosya menüsünden bir görsel klasörü yükleyin. Listeden bir sınıf seçin veya yeni bir sınıf oluşturun.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Çizim:&lt;/b&gt; Sınırlayıcı Kutu (BBox) ve Çokgen (Polygon) modları arasında geçiş yapmak için araç çubuğunu veya kısayolları kullanın.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Düzenleme:&lt;/b&gt; Mevcut etiketleri ayarlamak için Seçim Moduna geçin. Sınıfını değiştirmek için etikete çift tıklayın.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Modu:&lt;/b&gt; Nesneleri tek tıkla otomatik olarak segmentlere ayırmak ve etiketlemek için AI modunu etkinleştirin.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Klavye Kısayolları&lt;/h3&gt;
+&lt;table width="100%" cellspacing="4"&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;W&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Kutu (BBox) Aracı&lt;/td&gt;&lt;td&gt;&lt;b&gt;E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Çokgen Aracı&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Q&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Seçim/Düzenleme Aracı&lt;/td&gt;&lt;td&gt;&lt;b&gt;T&lt;/b&gt;&lt;/td&gt;&lt;td&gt;AI Modu Aç/Kapa&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;A / D&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Önceki / Sonraki Görsel&lt;/td&gt;&lt;td&gt;&lt;b&gt;Del&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Seçiliyi Sil&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ctrl+S&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Değişiklikleri Kaydet&lt;/td&gt;&lt;td&gt;&lt;b&gt;Ctrl+E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Veri Dışa Aktar&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p style="color: grey; font-size: 10px; margin-top: 15px;"&gt;© 2026 LocalTagger&lt;/p&gt;
+</translation>
+    </message>
+    <message>
+        <source>&lt;h2&gt;LocalTagger v2.0&lt;/h2&gt;
+&lt;p&gt;&lt;b&gt;Professional Data Annotation Tool&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;LocalTagger is a high-performance, privacy-centric application designed for efficient local data annotation. It integrates advanced AI capabilities with a robust manual labeling interface.&lt;/p&gt;
+
+&lt;h3&gt;Key Features&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Secure &amp; Local:&lt;/b&gt; Operates entirely offline to ensure maximum data privacy.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Assistance:&lt;/b&gt; Integrated MobileSAM model for automated object segmentation.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Multi-Format Export:&lt;/b&gt; Supports YOLO, COCO, and Pascal VOC standards with built-in data augmentation.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Usage Guide&lt;/h3&gt;
+&lt;p&gt;To start annotating, load a folder of images using the File menu. Select a class from the list or create a new one.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Drawing:&lt;/b&gt; Use the Toolbar or shortcuts to switch between Bounding Box and Polygon modes.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Editing:&lt;/b&gt; Switch to Select Mode to adjust existing annotations. Double-click a label to modify its class.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Mode:&lt;/b&gt; Enable AI to automatically segment and annotate objects with a single click.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Keyboard Shortcuts&lt;/h3&gt;
+&lt;table width="100%" cellspacing="4"&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;W&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Bounding Box Tool&lt;/td&gt;&lt;td&gt;&lt;b&gt;E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Polygon Tool&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Q&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Select/Edit Tool&lt;/td&gt;&lt;td&gt;&lt;b&gt;T&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Toggle AI Mode&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;A / D&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Previous / Next Image&lt;/td&gt;&lt;td&gt;&lt;b&gt;Del&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Delete Selected&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ctrl+S&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Save Changes&lt;/td&gt;&lt;td&gt;&lt;b&gt;Ctrl+E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Export Data&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p style="color: grey; font-size: 10px; margin-top: 15px;"&gt;© 2026 LocalTagger | Version 2.0.0&lt;/p&gt;
+</source>
+        <translation type="vanished">&lt;h2&gt;LocalTagger v2.0&lt;/h2&gt;
+&lt;p&gt;&lt;b&gt;Profesyonel Veri Etiketleme Aracı&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;LocalTagger, verimli yerel veri etiketleme için tasarlanmış, yüksek performanslı ve gizlilik odaklı bir uygulamadır. Gelişmiş yapay zeka yeteneklerini güçlü bir manuel etiketleme arayüzü ile birleştirir.&lt;/p&gt;
+
+&lt;h3&gt;Temel Özellikler&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Güvenli ve Yerel:&lt;/b&gt; Maksimum veri gizliliği sağlamak için tamamen çevrimdışı çalışır.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Yapay Zeka Desteği:&lt;/b&gt; Otomatik nesne segmentasyonu için entegre MobileSAM modeli.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Çoklu Format Desteği:&lt;/b&gt; Dahili veri artırma özellikleri ile YOLO, COCO ve Pascal VOC standartlarını destekler.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Kullanım Kılavuzu&lt;/h3&gt;
+&lt;p&gt;Etiketlemeye başlamak için Dosya menüsünden bir görsel klasörü yükleyin. Listeden bir sınıf seçin veya yeni bir sınıf oluşturun.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Çizim:&lt;/b&gt; Sınırlayıcı Kutu (BBox) ve Çokgen (Polygon) modları arasında geçiş yapmak için araç çubuğunu veya kısayolları kullanın.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Düzenleme:&lt;/b&gt; Mevcut etiketleri ayarlamak için Seçim Moduna geçin. Sınıfını değiştirmek için etikete çift tıklayın.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Modu:&lt;/b&gt; Nesneleri tek tıkla otomatik olarak segmentlere ayırmak ve etiketlemek için AI modunu etkinleştirin.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Klavye Kısayolları&lt;/h3&gt;
+&lt;table width="100%" cellspacing="4"&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;W&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Kutu (BBox) Aracı&lt;/td&gt;&lt;td&gt;&lt;b&gt;E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Çokgen Aracı&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Q&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Seçim/Düzenleme Aracı&lt;/td&gt;&lt;td&gt;&lt;b&gt;T&lt;/b&gt;&lt;/td&gt;&lt;td&gt;AI Modu Aç/Kapa&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;A / D&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Önceki / Sonraki Görsel&lt;/td&gt;&lt;td&gt;&lt;b&gt;Del&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Seçiliyi Sil&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ctrl+S&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Değişiklikleri Kaydet&lt;/td&gt;&lt;td&gt;&lt;b&gt;Ctrl+E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Veri Dışa Aktar&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p style="color: grey; font-size: 10px; margin-top: 15px;"&gt;© 2026 LocalTagger | Sürüm 2.0.0&lt;/p&gt;
+</translation>
+    </message>
+    <message>
+        <location filename="../app.py" line="1439" />
+        <source>About LocalTagger</source>
+        <translation>LocalTagger Hakkında</translation>
+    </message>
+    <message>
+        <source>&lt;h2&gt;LocalFlow v2.0&lt;/h2&gt;
+&lt;p&gt;&lt;b&gt;Professional Data Annotation Tool&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;LocalFlow is a high-performance, privacy-centric application designed for efficient local data annotation. It integrates advanced AI capabilities with a robust manual labeling interface.&lt;/p&gt;
+
+&lt;h3&gt;Key Features&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Secure &amp; Local:&lt;/b&gt; Operates entirely offline to ensure maximum data privacy.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Assistance:&lt;/b&gt; Integrated MobileSAM model for automated object segmentation.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Multi-Format Export:&lt;/b&gt; Supports YOLO, COCO, and Pascal VOC standards with built-in data augmentation.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Usage Guide&lt;/h3&gt;
+&lt;p&gt;To start annotating, load a folder of images using the File menu. Select a class from the list or create a new one.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Drawing:&lt;/b&gt; Use the Toolbar or shortcuts to switch between Bounding Box and Polygon modes.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Editing:&lt;/b&gt; Switch to Select Mode to adjust existing annotations. Double-click a label to modify its class.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Mode:&lt;/b&gt; Enable AI to automatically segment and annotate objects with a single click.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Keyboard Shortcuts&lt;/h3&gt;
+&lt;table width="100%" cellspacing="4"&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;W&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Bounding Box Tool&lt;/td&gt;&lt;td&gt;&lt;b&gt;E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Polygon Tool&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Q&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Select/Edit Tool&lt;/td&gt;&lt;td&gt;&lt;b&gt;T&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Toggle AI Mode&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;A / D&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Previous / Next Image&lt;/td&gt;&lt;td&gt;&lt;b&gt;Del&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Delete Selected&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ctrl+S&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Save Changes&lt;/td&gt;&lt;td&gt;&lt;b&gt;Ctrl+E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Export Data&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p style="color: grey; font-size: 10px; margin-top: 15px;"&gt;© 2026 LocalFlow | Version 2.0.0&lt;/p&gt;
+</source>
+        <translation type="vanished">&lt;h2&gt;LocalFlow v2.0&lt;/h2&gt;
+&lt;p&gt;&lt;b&gt;Profesyonel Veri Etiketleme Aracı&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;LocalFlow, verimli yerel veri etiketleme için tasarlanmış, yüksek performanslı ve gizlilik odaklı bir uygulamadır. Gelişmiş yapay zeka yeteneklerini güçlü bir manuel etiketleme arayüzü ile birleştirir.&lt;/p&gt;
+
+&lt;h3&gt;Temel Özellikler&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Güvenli ve Yerel:&lt;/b&gt; Maksimum veri gizliliği sağlamak için tamamen çevrimdışı çalışır.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Yapay Zeka Desteği:&lt;/b&gt; Otomatik nesne segmentasyonu için entegre MobileSAM modeli.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Çoklu Format Desteği:&lt;/b&gt; Dahili veri artırma özellikleri ile YOLO, COCO ve Pascal VOC standartlarını destekler.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Kullanım Kılavuzu&lt;/h3&gt;
+&lt;p&gt;Etiketlemeye başlamak için Dosya menüsünden bir görsel klasörü yükleyin. Listeden bir sınıf seçin veya yeni bir sınıf oluşturun.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Çizim:&lt;/b&gt; Sınırlayıcı Kutu (BBox) ve Çokgen (Polygon) modları arasında geçiş yapmak için araç çubuğunu veya kısayolları kullanın.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Düzenleme:&lt;/b&gt; Mevcut etiketleri ayarlamak için Seçim Moduna geçin. Sınıfını değiştirmek için etikete çift tıklayın.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Modu:&lt;/b&gt; Nesneleri tek tıkla otomatik olarak segmentlere ayırmak ve etiketlemek için AI modunu etkinleştirin.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Klavye Kısayolları&lt;/h3&gt;
+&lt;table width="100%" cellspacing="4"&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;W&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Kutu (BBox) Aracı&lt;/td&gt;&lt;td&gt;&lt;b&gt;E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Çokgen Aracı&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Q&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Seçim/Düzenleme Aracı&lt;/td&gt;&lt;td&gt;&lt;b&gt;T&lt;/b&gt;&lt;/td&gt;&lt;td&gt;AI Modu Aç/Kapa&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;A / D&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Önceki / Sonraki Görsel&lt;/td&gt;&lt;td&gt;&lt;b&gt;Del&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Seçiliyi Sil&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ctrl+S&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Değişiklikleri Kaydet&lt;/td&gt;&lt;td&gt;&lt;b&gt;Ctrl+E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Veri Dışa Aktar&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p style="color: grey; font-size: 10px; margin-top: 15px;"&gt;© 2026 LocalFlow | Sürüm 2.0.0&lt;/p&gt;
+</translation>
+    </message>
+    <message>
+        <source>&lt;h2&gt;LocalFlow v2.0&lt;/h2&gt;
+&lt;p&gt;&lt;b&gt;Professional Data Annotation Tool&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;LocalFlow is a high-performance, privacy-centric application designed for efficient local data annotation. It integrates advanced AI capabilities with a robust manual labeling interface.&lt;/p&gt;
+
+&lt;h3&gt;Key Features&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Secure &amp; Local:&lt;/b&gt; Operates entirely offline to ensure maximum data privacy.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Assistance:&lt;/b&gt; Integrated MobileSAM model for automated object segmentation.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Multi-Format Export:&lt;/b&gt; Supports YOLO, COCO, and Pascal VOC standards with built-in data augmentation.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Usage Guide&lt;/h3&gt;
+&lt;p&gt;To start annotating, load a folder of images using the File menu. Select a class from the list or create a new one.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Drawing:&lt;/b&gt; Use the Toolbar or shortcuts to switch between Bounding Box and Polygon modes.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Editing:&lt;/b&gt; Switch to Select Mode to adjust existing annotations. Double-click a label to modify its class.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Mode:&lt;/b&gt; Toggle AI to enable smart clicking. Left-click to add interest points; right-click to exclude areas.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Keyboard Shortcuts&lt;/h3&gt;
+&lt;table width="100%" cellspacing="4"&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;W&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Bounding Box Tool&lt;/td&gt;&lt;td&gt;&lt;b&gt;E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Polygon Tool&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Q&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Select/Edit Tool&lt;/td&gt;&lt;td&gt;&lt;b&gt;T&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Toggle AI Mode&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;A / D&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Previous / Next Image&lt;/td&gt;&lt;td&gt;&lt;b&gt;Del&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Delete Selected&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ctrl+S&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Save Changes&lt;/td&gt;&lt;td&gt;&lt;b&gt;Ctrl+E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Export Data&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p style="color: grey; font-size: 10px; margin-top: 15px;"&gt;© 2026 LocalFlow | Version 2.0.0&lt;/p&gt;
+</source>
+        <translation type="vanished">&lt;h2&gt;LocalFlow v2.0&lt;/h2&gt;
+&lt;p&gt;&lt;b&gt;Profesyonel Veri Etiketleme Aracı&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;LocalFlow, verimli yerel veri etiketleme için tasarlanmış, yüksek performanslı ve gizlilik odaklı bir uygulamadır. Gelişmiş yapay zeka yeteneklerini güçlü bir manuel etiketleme arayüzü ile birleştirir.&lt;/p&gt;
+
+&lt;h3&gt;Temel Özellikler&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Güvenli ve Yerel:&lt;/b&gt; Maksimum veri gizliliği sağlamak için tamamen çevrimdışı çalışır.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Yapay Zeka Desteği:&lt;/b&gt; Otomatik nesne segmentasyonu için entegre MobileSAM modeli.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Çoklu Format Desteği:&lt;/b&gt; Dahili veri artırma özellikleri ile YOLO, COCO ve Pascal VOC standartlarını destekler.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Kullanım Kılavuzu&lt;/h3&gt;
+&lt;p&gt;Etiketlemeye başlamak için Dosya menüsünden bir görsel klasörü yükleyin. Listeden bir sınıf seçin veya yeni bir sınıf oluşturun.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;Çizim:&lt;/b&gt; Sınırlayıcı Kutu (BBox) ve Çokgen (Polygon) modları arasında geçiş yapmak için araç çubuğunu veya kısayolları kullanın.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Düzenleme:&lt;/b&gt; Mevcut etiketleri ayarlamak için Seçim Moduna geçin. Sınıfını değiştirmek için etikete çift tıklayın.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;AI Modu:&lt;/b&gt; Akıllı seçimi etkinleştirmek için AI'ı açın. İlgi noktası eklemek için sol tıklayın; alanları hariç tutmak için sağ tıklayın.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Klavye Kısayolları&lt;/h3&gt;
+&lt;table width="100%" cellspacing="4"&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;W&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Kutu (BBox) Aracı&lt;/td&gt;&lt;td&gt;&lt;b&gt;E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Çokgen Aracı&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Q&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Seçim/Düzenleme Aracı&lt;/td&gt;&lt;td&gt;&lt;b&gt;T&lt;/b&gt;&lt;/td&gt;&lt;td&gt;AI Modu Aç/Kapa&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;A / D&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Önceki / Sonraki Görsel&lt;/td&gt;&lt;td&gt;&lt;b&gt;Del&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Seçiliyi Sil&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ctrl+S&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Değişiklikleri Kaydet&lt;/td&gt;&lt;td&gt;&lt;b&gt;Ctrl+E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Veri Dışa Aktar&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p style="color: grey; font-size: 10px; margin-top: 15px;"&gt;© 2026 LocalFlow | Sürüm 2.0.0&lt;/p&gt;
+</translation>
+    </message>
+    <message>
+        <source>&lt;h2&gt;LocalFlow v2.0&lt;/h2&gt;
+&lt;p&gt;&lt;b&gt;Advanced Local Data Annotation with AI Assistance&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;LocalFlow is a privacy-focused, offline annotation tool designed for speed and efficiency. It runs entirely on your local machine.&lt;/p&gt;
+
+&lt;h3&gt;🚀 Core Features&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;MobileSAM Integration:&lt;/b&gt; Real-time AI-assisted labeling. Press &lt;b&gt;T&lt;/b&gt; to toggle.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Privacy First:&lt;/b&gt; No data leaves your computer.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Versatile Export:&lt;/b&gt; Support for YOLO (v5-v11), COCO, and Pascal VOC formats.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Smart Augmentation:&lt;/b&gt; Built-in data augmentation tools during export.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;⌨️ Keyboard Shortcuts&lt;/h3&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;T&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Toggle AI Mode&lt;/td&gt;&lt;td&gt;&lt;b&gt;W&lt;/b&gt;&lt;/td&gt;&lt;td&gt;New Bounding Box&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;New Polygon&lt;/td&gt;&lt;td&gt;&lt;b&gt;Q&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Select/Edit Mode&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;A / D&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Previous / Next Image&lt;/td&gt;&lt;td&gt;&lt;b&gt;Ctrl+S&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Save Annotations&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ctrl+E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Open Export Wizard&lt;/td&gt;&lt;td&gt;&lt;b&gt;Del&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Delete Selected&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;h3&gt;💡 Quick Tips&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Double-click existing labels to change their class.&lt;/li&gt;
+&lt;li&gt;Use the &lt;b&gt;Files Panel&lt;/b&gt; on the left to filter labeled/unlabeled images.&lt;/li&gt;
+&lt;li&gt;All annotations are auto-saved to the &lt;code&gt;labels/&lt;/code&gt; directory.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p style="color: gray; font-size: 10px;"&gt;© 2026 LocalFlow | v2.0.0&lt;/p&gt;
+</source>
+        <translation type="vanished">&lt;h2&gt;LocalFlow v2.0&lt;/h2&gt;
+&lt;p&gt;&lt;b&gt;Yapay Zeka Destekli Gelişmiş Veri Etiketleme&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;LocalFlow, hız ve verimlilik için tasarlanmış, tamamen yerel çalışan güvenli bir etiketleme aracıdır. Verileriniz bilgisayarınızdan dışarı çıkmaz.&lt;/p&gt;
+
+&lt;h3&gt;🚀 Temel Özellikler&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;b&gt;MobileSAM Entegrasyonu:&lt;/b&gt; Gerçek zamanlı yapay zeka desteği. (Açmak için &lt;b&gt;T&lt;/b&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Önce Gizlilik:&lt;/b&gt; İnternet bağlantısı gerektirmez, tamamen çevrimdışı çalışır.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Çoklu Dışa Aktarım:&lt;/b&gt; YOLO (v5-v11), COCO ve Pascal VOC format desteği.&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Akıllı Çoğaltma:&lt;/b&gt; Export sırasında veri artırma (augmentation) araçları.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;⌨️ Klavye Kısayolları&lt;/h3&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;T&lt;/b&gt;&lt;/td&gt;&lt;td&gt;AI Modu Aç/Kapa&lt;/td&gt;&lt;td&gt;&lt;b&gt;W&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Yeni Bounding Box&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Yeni Polygon&lt;/td&gt;&lt;td&gt;&lt;b&gt;Q&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Seçim/Düzenleme&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;A / D&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Önceki / Sonraki&lt;/td&gt;&lt;td&gt;&lt;b&gt;Ctrl+S&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Kaydet&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ctrl+E&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Export Sihirbazı&lt;/td&gt;&lt;td&gt;&lt;b&gt;Del&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Seçiliyi Sil&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;h3&gt;💡 İpuçları&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Sınıf değiştirmek için etikete çift tıklayın.&lt;/li&gt;
+&lt;li&gt;Etiketli/etiketsiz görselleri filtrelemek için sol paneli kullanın.&lt;/li&gt;
+&lt;li&gt;Tüm etiketler otomatik olarak &lt;code&gt;labels/&lt;/code&gt; klasörüne kaydedilir.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p style="color: gray; font-size: 10px;"&gt;© 2026 LocalFlow | v2.0.0&lt;/p&gt;
+</translation>
+    </message>
+    <message>
         <source>&lt;h2&gt;LocalFlow v2.0&lt;/h2&gt;
 &lt;p&gt;&lt;b&gt;AI-Powered Data Annotation Tool&lt;/b&gt;&lt;/p&gt;
 
@@ -1161,7 +1470,7 @@ Bu işlem geri alınamaz!</translation>
 
 &lt;p style="color: gray; font-size: 10px;"&gt;© 2026 LocalFlow&lt;/p&gt;
 </source>
-        <translation>&lt;h2&gt;LocalFlow v2.0&lt;/h2&gt;
+        <translation type="vanished">&lt;h2&gt;LocalFlow v2.0&lt;/h2&gt;
 &lt;p&gt;&lt;b&gt;Yapay Zeka Destekli Veri Etiketleme Aracı&lt;/b&gt;&lt;/p&gt;
 
 &lt;h3&gt;🤖 AI Özellikleri (MobileSAM)&lt;/h3&gt;
@@ -1200,83 +1509,82 @@ Bu işlem geri alınamaz!</translation>
 </translation>
     </message>
     <message>
-        <location filename="../app.py" line="1447" />
         <source>About LocalFlow</source>
-        <translation>LocalFlow Hakkında</translation>
+        <translation type="vanished">LocalFlow Hakkında</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1462" />
+        <location filename="../app.py" line="1454" />
         <source>Unsaved Changes</source>
         <translation>Kaydedilmemiş Değişiklikler</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1463" />
+        <location filename="../app.py" line="1455" />
         <source>There are unsaved changes. Do you want to exit without saving?</source>
         <translation>Kaydedilmemiş değişiklikler var. Kaydetmeden çıkmak istiyor musunuz?</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1523" />
-        <location filename="../app.py" line="1535" />
+        <location filename="../app.py" line="1515" />
+        <location filename="../app.py" line="1527" />
         <source>⏳ SAM model is loading, please wait...</source>
         <translation>⏳ SAM modeli yükleniyor, lütfen bekleyin...</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1547" />
+        <location filename="../app.py" line="1539" />
         <source>🤖 AI mode enabled - Click on an object</source>
         <translation>🤖 AI modu aktif - Bir nesneye tıklayın</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1551" />
+        <location filename="../app.py" line="1543" />
         <source>🤖 AI mode disabled</source>
         <translation>🤖 AI modu devre dışı</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1556" />
+        <location filename="../app.py" line="1548" />
         <source>✓ SAM model loaded - Press T to enable AI</source>
         <translation>✓ SAM modeli yüklendi - AI'yı açmak için T'ye basın</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1561" />
+        <location filename="../app.py" line="1553" />
         <source>❌ SAM model error: {}</source>
         <translation>❌ SAM model hatası: {}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1565" />
+        <location filename="../app.py" line="1557" />
         <source>⏳ Analyzing...</source>
         <translation>⏳ Analiz ediliyor...</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1569" />
+        <location filename="../app.py" line="1561" />
         <source>✓ Ready</source>
         <translation>✓ Hazır</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1570" />
+        <location filename="../app.py" line="1562" />
         <source>🤖 AI ready - Click on an object</source>
         <translation>🤖 AI hazır - Bir nesneye tıklayın</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1575" />
+        <location filename="../app.py" line="1567" />
         <source>❌ SAM error: {}</source>
         <translation>❌ SAM hatası: {}</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1584" />
+        <location filename="../app.py" line="1576" />
         <source>⏳ Please wait, analyzing image...</source>
         <translation>⏳ Lütfen bekleyin, görsel analiz ediliyor...</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1587" />
+        <location filename="../app.py" line="1579" />
         <source>🔍 AI segmentation in progress... ({}, {})</source>
         <translation>🔍 AI segmentasyonu devam ediyor... ({}, {})</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1691" />
+        <location filename="../app.py" line="1683" />
         <source>✓ AI Polygon created - Select class</source>
         <translation>✓ AI Polygon oluşturuldu - Sınıf seçin</translation>
     </message>
     <message>
-        <location filename="../app.py" line="1712" />
+        <location filename="../app.py" line="1704" />
         <source>❌ Could not read image: {}</source>
         <translation>❌ Görsel okunamadı: {}</translation>
     </message>

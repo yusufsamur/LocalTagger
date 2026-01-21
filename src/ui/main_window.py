@@ -1,7 +1,7 @@
 """
-Ana Pencere İçeriği
+Main Window Content
 ===================
-Merkez canvas ve yan panelleri içeren ana widget.
+Main widget containing the center canvas and side panels.
 """
 
 from PySide6.QtWidgets import (
@@ -19,14 +19,14 @@ from ui.widgets.annotation_list_widget import AnnotationListWidget
 
 class MainWindow(QWidget):
     """
-    Uygulamanın ana içerik alanı.
-    Sol panel (dosya listesi) + Merkez (canvas) + Sağ panel (sınıflar + etiketler)
+    Application main content area.
+    Left panel (file list) + Center (canvas) + Right panel (classes + labels)
     """
     
-    # Sinyaller
+    # Signals
     image_selected = Signal(str)
     tool_changed = Signal(str)
-    sam_toggled = Signal(bool)  # AI toggle sinyali
+    sam_toggled = Signal(bool)  # AI toggle signal
     
     def __init__(self, class_manager: ClassManager, 
                  annotation_manager: AnnotationManager, parent=None):
@@ -45,34 +45,34 @@ class MainWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Üst Toolbar
+        # Top Toolbar
         self.toolbar = self._create_toolbar()
         layout.addWidget(self.toolbar)
         
-        # Ana splitter
+        # Main splitter
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         layout.addWidget(self.splitter)
         
-        # Sol Panel - Dosya Listesi
+        # Left Panel - File List
         self.left_panel = self._create_left_panel()
         self.splitter.addWidget(self.left_panel)
         
-        # Merkez - Canvas
+        # Center - Canvas
         self.canvas_view = AnnotationView()
         self.splitter.addWidget(self.canvas_view)
         
-        # Sağ Panel - Sınıflar + Etiketler
+        # Right Panel - Classes + Labels
         self.right_panel = self._create_right_panel()
         self.splitter.addWidget(self.right_panel)
         
-        # Panel genişlikleri
+        # Panel widths
         self.splitter.setSizes([200, 800, 220])
         self.splitter.setStretchFactor(0, 0)
         self.splitter.setStretchFactor(1, 1)
         self.splitter.setStretchFactor(2, 0)
         
     def _create_toolbar(self) -> QToolBar:
-        """Araç çubuğu oluştur."""
+        """Create toolbar."""
         toolbar = QToolBar()
         toolbar.setMovable(False)
         toolbar.setStyleSheet("""
@@ -122,13 +122,13 @@ class MainWindow(QWidget):
         self.toolbar_info.setStyleSheet("color: #888;")
         toolbar.addWidget(self.toolbar_info)
         
-        # Sağa hizalamak için spacer
+        # Spacer for right alignment
         spacer = QWidget()
         spacer.setSizePolicy(spacer.sizePolicy().horizontalPolicy().Expanding, 
                              spacer.sizePolicy().verticalPolicy().Preferred)
         toolbar.addWidget(spacer)
         
-        # Magic Pixel Butonu
+        # Magic Pixel Button
         self.magic_pixel_btn = QPushButton(self.tr("✨ Magic Pixel"))
         self.magic_pixel_btn.setCheckable(True)
         self.magic_pixel_btn.setToolTip(self.tr("Click to label - Point-based (T)"))
@@ -153,7 +153,7 @@ class MainWindow(QWidget):
         self.magic_pixel_btn.clicked.connect(self._on_magic_pixel_clicked)
         toolbar.addWidget(self.magic_pixel_btn)
         
-        # Magic Box Butonu
+        # Magic Box Button
         self.magic_box_btn = QPushButton(self.tr("📦 Magic Box"))
         self.magic_box_btn.setCheckable(True)
         self.magic_box_btn.setToolTip(self.tr("Draw bbox, AI refines - Box-based (Y)"))
@@ -186,8 +186,8 @@ class MainWindow(QWidget):
         return toolbar
     
     def _on_tool_clicked(self, tool: str):
-        """Araç butonuna tıklandığında."""
-        # Tüm butonları uncheck yap
+        """When tool button is clicked."""
+        # Uncheck all buttons
         self.select_btn.setChecked(tool == "select")
         self.bbox_btn.setChecked(tool == "bbox")
         self.polygon_btn.setChecked(tool == "polygon")
@@ -199,7 +199,7 @@ class MainWindow(QWidget):
         self.toolbar_info.setText(self.tr("  Tool: {}").format(tool_names.get(tool, tool)))
         
     def _create_left_panel(self) -> QFrame:
-        """Sol panel (dosya listesi) oluştur."""
+        """Create left panel (file list)."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(150)
@@ -229,7 +229,7 @@ class MainWindow(QWidget):
         return panel
     
     def _create_right_panel(self) -> QFrame:
-        """Sağ panel (etiket özeti) oluştur."""
+        """Create right panel (annotation summary)."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel) 
         panel.setMinimumWidth(180)
@@ -239,7 +239,7 @@ class MainWindow(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(10)
         
-        # Etiket özeti widget
+        # Annotation summary widget
         self.annotation_list_widget = AnnotationListWidget(
             self._annotation_manager, 
             self._class_manager
@@ -253,12 +253,12 @@ class MainWindow(QWidget):
         self.annotation_list_widget.annotation_deleted.connect(self._on_annotation_deleted)
         
     def _on_file_selected(self, row: int):
-        """Dosya listesinden bir öğe seçildiğinde."""
+        """When an item is selected from file list."""
         item = self.file_list.item(row)
         if item:
             file_path = item.data(Qt.ItemDataRole.UserRole)
             if file_path:
-                # Önceki görselin etiketlerini kaydet
+                # Save annotations of previous image
                 self._save_current_annotations()
                 
                 self._current_image_path = file_path
@@ -268,14 +268,14 @@ class MainWindow(QWidget):
                 if self.canvas_view.scene.load_image(file_path):
                     self.canvas_view.zoom_fit()
                     
-                    # Görsel boyutunu annotation manager'a bildir
+                    # Notify annotation manager about image size
                     w, h = self.canvas_view.scene.image_size
                     self._annotation_manager.set_image_size(file_path, w, h)
                     
-                    # Eğer YOLO txt varsa yükle (labels klasöründen)
+                    # If YOLO txt exists, load it (from labels folder)
                     self._load_annotations_from_labels(file_path, w, h)
                     
-                    # Kayıtlı etiketleri çiz
+                    # Draw saved annotations
                     annotations = self._annotation_manager.get_annotations(file_path)
                     self.canvas_view.draw_annotations(
                         annotations.bboxes, 
@@ -283,30 +283,30 @@ class MainWindow(QWidget):
                         self._class_manager
                     )
                     
-                    # Etiket listesini güncelle
+                    # Update annotation list
                     self.annotation_list_widget.set_current_image(file_path)
                     
-                    # Varsayılan sınıf rengini ayarla
+                    # Set default class color
                     if self._class_manager.count > 0:
                         first_class = self._class_manager.classes[0]
                         self.canvas_view.set_draw_color(first_class.color)
     
     def _get_labels_dir(self) -> 'Path':
-        """Labels klasörünü döndür."""
+        """Return labels directory."""
         from pathlib import Path
         if not self._current_image_path:
             return None
         image_path = Path(self._current_image_path)
         parent = image_path.parent
         
-        # images klasörü varsa yanında labels oluştur
+        # If images folder exists, create labels next to it
         if parent.name.lower() == "images":
             return parent.parent / "labels"
         else:
             return parent / "labels"
     
     def _save_current_annotations(self):
-        """Mevcut görselin etiketlerini labels klasörüne kaydet."""
+        """Save annotations of current image to labels folder."""
         if not self._current_image_path:
             return
         
@@ -315,19 +315,19 @@ class MainWindow(QWidget):
             labels_dir.mkdir(parents=True, exist_ok=True)
             self._annotation_manager.save_yolo(self._current_image_path, labels_dir)
             
-            # classes.txt'i de kaydet (yeni sınıfların kaybolmaması için)
+            # Save classes.txt too (to prevent losing new classes)
             self._class_manager.save_to_file(labels_dir / "classes.txt")
             
-            # Etiketli/etiketsiz sayısını güncelle
+            # Update labeled/unlabeled count
             self.refresh_labeled_count()
     
     def _load_annotations_from_labels(self, image_path: str, w: int, h: int):
-        """Labels klasöründen etiketleri yükle."""
+        """Load annotations from labels folder."""
         from pathlib import Path
         image_p = Path(image_path)
         parent = image_p.parent
         
-        # Önce labels klasöründen dene
+        # Try labels folder first
         if parent.name.lower() == "images":
             labels_dir = parent.parent / "labels"
         else:
@@ -335,56 +335,56 @@ class MainWindow(QWidget):
         
         txt_path = labels_dir / f"{image_p.stem}.txt"
         if txt_path.exists():
-            # Özel yükleme: labels klasöründen
+            # Custom load: from labels folder
             self._annotation_manager._load_from_path(image_path, txt_path, w, h)
-            # Eksik sınıfları otomatik oluştur
+            # Create missing classes automatically
             self._ensure_classes_exist(image_path)
         else:
-            # Fallback: aynı klasörden yükle
+            # Fallback: load from same folder
             self._annotation_manager.load_yolo(image_path, w, h)
-            # Eksik sınıfları otomatik oluştur
+            # Create missing classes automatically
             self._ensure_classes_exist(image_path)
     
     def _ensure_classes_exist(self, image_path: str):
-        """Yüklenen etiketlerdeki eksik sınıfları otomatik oluştur."""
+        """Automatically create missing classes in loaded annotations."""
         annotations = self._annotation_manager.get_annotations(image_path)
         
-        # Tüm class_id'leri topla
+        # Collect all class_ids
         class_ids = set()
         for bbox in annotations.bboxes:
             class_ids.add(bbox.class_id)
         for polygon in annotations.polygons:
             class_ids.add(polygon.class_id)
         
-        # Eksik sınıfları oluştur
+        # Create missing classes
         for class_id in class_ids:
             if self._class_manager.get_by_id(class_id) is None:
-                # Placeholder sınıf oluştur
+                # Create placeholder class
                 self._class_manager.add_class_with_id(class_id, f"none_{class_id}")
     
     def set_draw_color(self, class_id: int):
-        """Sınıf rengini ayarla."""
+        """Set class color."""
         label_class = self._class_manager.get_by_id(class_id)
         if label_class:
             self.canvas_view.set_draw_color(label_class.color)
             
     def _on_annotation_deleted(self, ann_type: str, index: int):
-        """Etiket silindiğinde."""
+        """When annotation is deleted."""
         if ann_type == "bbox":
             self._annotation_manager.remove_bbox(self._current_image_path, index)
         else:
             self._annotation_manager.remove_polygon(self._current_image_path, index)
         
-        # Canvas'ı yenile
+        # Refresh canvas
         self.refresh_canvas()
         self.annotation_list_widget.refresh()
         
     def refresh_canvas(self):
-        """Canvas'ı yeniden çiz (tüm etiketlerle birlikte)."""
+        """Redraw canvas (with all annotations)."""
         if not self._current_image_path:
             return
         
-        # Kayıtlı etiketleri tekrar çiz
+        # Redraw saved annotations
         annotations = self._annotation_manager.get_annotations(self._current_image_path)
         self.canvas_view.draw_annotations(
             annotations.bboxes, 
@@ -393,7 +393,7 @@ class MainWindow(QWidget):
         )
     
     def populate_file_list(self, file_paths: list):
-        """Dosya listesini doldur."""
+        """Populate file list."""
         self.file_list.clear()
         
         for path in file_paths:
@@ -405,14 +405,14 @@ class MainWindow(QWidget):
         self.files_title.setText(self.tr("📁 Files ({})").format(len(file_paths)))
         self.file_info_label.setText(self.tr("{} images").format(len(file_paths)))
         
-        # Etiketli/etiketsiz sayısını güncelle
+        # Update labeled/unlabeled count
         self._update_labeled_count(file_paths)
         
     def get_current_image_path(self) -> str:
         return self._current_image_path
     
     def set_tool(self, tool: str):
-        """Aracı değiştir."""
+        """Change tool."""
         self._on_tool_clicked(tool)
     
     # ─────────────────────────────────────────────────────────────────
@@ -420,47 +420,47 @@ class MainWindow(QWidget):
     # ─────────────────────────────────────────────────────────────────
     
     def _on_magic_pixel_clicked(self):
-        """Magic Pixel butonuna tıklandığında."""
+        """When Magic Pixel button is clicked."""
         if self.magic_pixel_btn.isChecked():
-            # Magic Pixel aktif - Magic Box'ı kapat
+            # Magic Pixel active - Close Magic Box
             self.magic_box_btn.setChecked(False)
             self._sam_mode = "pixel"
         else:
-            # Tekrar tıklandı - kapat
+            # Clicked again - close
             self._sam_mode = None
         
         self._update_sam_state()
     
     def _on_magic_box_clicked(self):
-        """Magic Box butonuna tıklandığında."""
+        """When Magic Box button is clicked."""
         if self.magic_box_btn.isChecked():
-            # Magic Box aktif - Magic Pixel'i kapat
+            # Magic Box active - Close Magic Pixel
             self.magic_pixel_btn.setChecked(False)
             self._sam_mode = "box"
         else:
-            # Tekrar tıklandı - kapat
+            # Clicked again - close
             self._sam_mode = None
         
         self._update_sam_state()
     
     def _update_sam_state(self):
-        """SAM durumunu canvas'a ve sinyale bildir."""
+        """Notify canvas and signal about SAM state."""
         self.canvas_view.set_sam_mode(self._sam_mode)
         self.sam_toggled.emit(self._sam_mode is not None)
     
     def set_sam_mode(self, mode: str):
-        """SAM modunu ayarla (dışarıdan) - 'pixel', 'box', veya None."""
+        """Set SAM mode (externally) - 'pixel', 'box', or None."""
         self._sam_mode = mode
         self.magic_pixel_btn.setChecked(mode == "pixel")
         self.magic_box_btn.setChecked(mode == "box")
         self.canvas_view.set_sam_mode(mode)
     
     def set_sam_status(self, status: str):
-        """SAM durum mesajını ayarla."""
+        """Set SAM status message."""
         self.sam_status.setText(status)
     
     def set_sam_ready(self, ready: bool):
-        """SAM hazır durumunu ayarla."""
+        """Set SAM ready status."""
         self.magic_pixel_btn.setEnabled(ready)
         self.magic_box_btn.setEnabled(ready)
         if not ready:
@@ -470,16 +470,16 @@ class MainWindow(QWidget):
     
     @property
     def sam_enabled(self) -> bool:
-        """SAM etkin mi? (herhangi bir mod aktifse True)"""
+        """Is SAM enabled? (True if any mode is active)"""
         return self._sam_mode is not None
     
     @property
     def sam_mode(self) -> str:
-        """Aktif SAM modu - 'pixel', 'box', veya None."""
+        """Active SAM mode - 'pixel', 'box', or None."""
         return self._sam_mode
     
     def _update_labeled_count(self, file_paths: list):
-        """Etiketli ve etiketsiz dosya sayısını güncelle."""
+        """Update labeled and unlabeled file count."""
         from pathlib import Path
         
         if not file_paths:
@@ -489,7 +489,7 @@ class MainWindow(QWidget):
         labeled = 0
         unlabeled = 0
         
-        # Labels klasörünü bul
+        # Find labels folder
         first_path = Path(file_paths[0])
         parent = first_path.parent
         
@@ -509,7 +509,7 @@ class MainWindow(QWidget):
         self.labeled_count_label.setText(self.tr("✅ {} labeled  ⭕ {} unlabeled").format(labeled, unlabeled))
     
     def refresh_labeled_count(self):
-        """Etiketli/etiketsiz sayısını yenile - mevcut dosya listesinden."""
+        """Refresh labeled/unlabeled count - from current file list."""
         from pathlib import Path
         file_paths = []
         for i in range(self.file_list.count()):

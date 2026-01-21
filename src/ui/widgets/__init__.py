@@ -1,7 +1,7 @@
 """
-Özel Widget'lar
-===============
-Sınıf listesi, etiket listesi ve diğer custom widget'lar.
+Custom Widgets
+==============
+Class list, annotation list and other custom widgets.
 """
 
 from .class_list_widget import ClassListWidget

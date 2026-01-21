@@ -1,7 +1,7 @@
 """
-Sınıf Seçici Popup Widget
-=========================
-BBox çizimi sonrasında sağ üst köşede açılan sınıf seçim menüsü.
+Class Selector Popup Widget
+===========================
+Class selection menu that opens in top-right corner after BBox drawing.
 """
 
 from PySide6.QtWidgets import (
@@ -13,15 +13,15 @@ from PySide6.QtGui import QColor, QIcon, QPixmap, QPainter, QBrush, QKeyEvent
 
 class ClassSelectorPopup(QFrame):
     """
-    Sınıf seçici popup widget.
-    BBox çizimi tamamlandığında sağ üst köşede gösterilir.
+    Class selector popup widget.
+    Shown in top-right corner when BBox drawing is completed.
     """
     
-    # Sinyaller
-    class_selected = Signal(int)  # Seçilen sınıf ID'si
+    # Signals
+    class_selected = Signal(int)  # Selected class ID
     cancelled = Signal()
-    closed = Signal()  # Popup kapandığında
-    navigate_requested = Signal(str)  # 'next' veya 'prev' - foto değiştirme isteği
+    closed = Signal()  # When popup is closed
+    navigate_requested = Signal(str)  # 'next' or 'prev' - request to change photo
     
     def __init__(self, class_manager, last_used_class_id: int = 0, parent=None):
         super().__init__(parent)
@@ -32,7 +32,7 @@ class ClassSelectorPopup(QFrame):
         # Drag state for movable popup
         self._drag_pos = None
         
-        # Non-modal window - bbox ile etkileşime izin ver
+        # Non-modal window - allow interaction with bbox
         self.setWindowFlags(
             Qt.WindowType.Window | 
             Qt.WindowType.FramelessWindowHint | 
@@ -41,7 +41,7 @@ class ClassSelectorPopup(QFrame):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, False)
         
-        # Focus değişikliğini dinle - pencere değiştiğinde kapat
+        # Listen for focus change - close when window changes
         from PySide6.QtWidgets import QApplication
         QApplication.instance().focusChanged.connect(self._on_focus_changed)
         
@@ -80,21 +80,21 @@ class ClassSelectorPopup(QFrame):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(2)
         
-        # Başlık
+        # Title
         title = QLabel(self.tr("Select Class (1-9 or Enter)"))
         layout.addWidget(title)
         
-        # Sınıf butonları
+        # Class buttons
         for idx, label_class in enumerate(self._class_manager.classes):
             btn = QPushButton()
             btn.setIcon(self._create_color_icon(label_class.color))
             
-            # Klavye kısayolu göster (1-9)
+            # Show keyboard shortcut (1-9)
             shortcut_text = f"[{idx + 1}]" if idx < 9 else ""
             btn.setText(f"{shortcut_text} {label_class.name}")
             btn.setProperty("class_id", label_class.id)
             
-            # Varsayılan sınıfı vurgula
+            # Highlight default class
             if label_class.id == self._last_used_class_id:
                 btn.setStyleSheet(btn.styleSheet() + "background: #0d6efd;")
                 btn.setFocus()
@@ -103,12 +103,12 @@ class ClassSelectorPopup(QFrame):
             layout.addWidget(btn)
             self._buttons.append(btn)
         
-        # İptal bilgisi
+        # Cancel info
         cancel_label = QLabel(self.tr("ESC: Cancel"))
         layout.addWidget(cancel_label)
         
     def _create_color_icon(self, color_hex: str, size: int = 16) -> QIcon:
-        """Renk ikonu oluştur."""
+        """Create color icon."""
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.GlobalColor.transparent)
         
@@ -122,39 +122,39 @@ class ClassSelectorPopup(QFrame):
         return QIcon(pixmap)
     
     def _on_class_clicked(self, class_id: int):
-        """Sınıf butonuna tıklandığında."""
+        """When class button is clicked."""
         self.class_selected.emit(class_id)
         self.close()
     
     def keyPressEvent(self, event: QKeyEvent):
-        """Klavye olayları."""
+        """Keyboard events."""
         key = event.key()
         
-        # ESC - iptal
+        # ESC - cancel
         if key == Qt.Key.Key_Escape:
             self.cancelled.emit()
             self.close()
             return
         
-        # Enter - varsayılan sınıfı seç
+        # Enter - select default class
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.class_selected.emit(self._last_used_class_id)
             self.close()
             return
         
-        # A/Left - önceki görsel
+        # A/Left - previous image
         if key in (Qt.Key.Key_A, Qt.Key.Key_Left):
             self.navigate_requested.emit('prev')
             self.close()
             return
         
-        # D/Right - sonraki görsel
+        # D/Right - next image
         if key in (Qt.Key.Key_D, Qt.Key.Key_Right):
             self.navigate_requested.emit('next')
             self.close()
             return
         
-        # 1-9 tuşları - sınıf seç
+        # 1-9 keys - select class
         if Qt.Key.Key_1 <= key <= Qt.Key.Key_9:
             idx = key - Qt.Key.Key_1
             if idx < len(self._buttons):
@@ -166,14 +166,14 @@ class ClassSelectorPopup(QFrame):
         super().keyPressEvent(event)
     
     def show_at(self, global_pos: QPoint):
-        """Belirtilen pozisyonda göster."""
+        """Show at specified position."""
         self.move(global_pos)
         self.show()
         self.setFocus()
     
     def closeEvent(self, event):
-        """Popup kapandığında sinyal gönder."""
-        # Focus change bağlantısını kes
+        """Send signal when popup is closed."""
+        # Disconnect focus change
         try:
             from PySide6.QtWidgets import QApplication
             QApplication.instance().focusChanged.disconnect(self._on_focus_changed)
@@ -183,35 +183,35 @@ class ClassSelectorPopup(QFrame):
         super().closeEvent(event)
     
     def _on_focus_changed(self, old, new):
-        """Uygulama focus kaybederse popup'ı kapat."""
+        """Close popup if application loses focus."""
         if not self.isVisible():
             return
         
-        # Yeni focus widget'ı None ise (başka uygulamaya geçildi)
-        # veya bu popup veya alt widget'larından biri değilse
+        # If new focus widget is None (switched to another app)
+        # or not this popup or one of its child widgets
         if new is None:
             self.close()
         elif new is not None:
-            # Focus bu popup içinde mi kontrol et
+            # Check if focus is inside this popup
             widget = new
             while widget is not None:
                 if widget is self:
-                    return  # Popup içinde, kapatma
+                    return  # Inside popup, don't close
                 widget = widget.parent()
-            # Popup dışında - başka pencereye geçildi
-            # Ana uygulama içinde mi kontrol et
+            # Outside popup - switched to another window
+            # Check if inside main application
             if new.window() != self:
-                # Focus uygulama dışına giderse kapat
+                # If focus goes outside application, close
                 pass
     
     def mousePressEvent(self, event):
-        """Popup'ı sürüklemek için başlangıç pozisyonunu kaydet."""
+        """Save start position to drag popup."""
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_pos = event.globalPosition().toPoint()
         super().mousePressEvent(event)
     
     def mouseMoveEvent(self, event):
-        """Popup'ı sürükle."""
+        """Drag popup."""
         if self._drag_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
             diff = event.globalPosition().toPoint() - self._drag_pos
             self.move(self.pos() + diff)
@@ -219,6 +219,6 @@ class ClassSelectorPopup(QFrame):
         super().mouseMoveEvent(event)
     
     def mouseReleaseEvent(self, event):
-        """Sürükleme tamamlandı."""
+        """Drag completed."""
         self._drag_pos = None
         super().mouseReleaseEvent(event)

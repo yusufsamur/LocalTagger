@@ -1,6 +1,6 @@
 """
-UI modülü - Kullanıcı arayüzü bileşenleri
-=========================================
+UI module - User Interface components
+=====================================
 """
 
 from .main_window import MainWindow

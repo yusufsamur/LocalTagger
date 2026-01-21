@@ -1,7 +1,7 @@
 """
 Dataset Splitter
 ================
-Veri setini train/validation/test'e böler.
+Splits dataset into train/validation/test sets.
 """
 
 import random
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 @dataclass
 class SplitConfig:
-    """Dataset bölme yapılandırması."""
+    """Dataset split configuration."""
     enabled: bool = False
     train_ratio: float = 0.7
     val_ratio: float = 0.2
@@ -23,18 +23,18 @@ class SplitConfig:
 
 class DatasetSplitter:
     """
-    Veri setini train/validation/test'e böler.
+    Splits dataset into train/validation/test sets.
     """
     
     def __init__(self, seed: int = 42):
         """
         Args:
-            seed: Rastgelelik için seed değeri (tekrarlanabilirlik)
+            seed: Seed value for randomness (reproducibility)
         """
         self.seed = seed
     
     def set_seed(self, seed: int):
-        """Seed değerini değiştir."""
+        """Change seed value."""
         self.seed = seed
     
     def split(
@@ -43,11 +43,11 @@ class DatasetSplitter:
         config: SplitConfig
     ) -> Dict[str, List[Path]]:
         """
-        Görsel dosyalarını train/val/test'e böl.
+        Split image files into train/val/test.
         
         Args:
-            image_files: Tüm görsel dosyaları
-            config: Bölme yapılandırması
+            image_files: All image files
+            config: Split configuration
             
         Returns:
             {'train': [...], 'val': [...], 'test': [...]}
@@ -55,15 +55,15 @@ class DatasetSplitter:
         if not config.enabled:
             return {'all': list(image_files)}
         
-        # Oranları doğrula
+        # Validate ratios
         total_ratio = config.train_ratio + config.val_ratio + config.test_ratio
         if abs(total_ratio - 1.0) > 0.01:
-            # Normalize et
+            # Normalize
             config.train_ratio /= total_ratio
             config.val_ratio /= total_ratio
             config.test_ratio /= total_ratio
         
-        # Kopyala ve karıştır
+        # Copy and shuffle
         files = list(image_files)
         if config.shuffle:
             random.seed(config.seed if config.seed else self.seed)
@@ -94,7 +94,7 @@ class DatasetSplitter:
         config: SplitConfig
     ) -> Dict[str, int]:
         """
-        Bölme istatistiklerini döndür (önizleme için).
+        Return split statistics (for preview).
         
         Returns:
             {'train': count, 'val': count, 'test': count}
@@ -119,19 +119,19 @@ class DatasetSplitter:
         test: float
     ) -> Tuple[bool, str]:
         """
-        Oranları doğrula.
+        Validate ratios.
         
         Returns:
             (is_valid, error_message)
         """
         if train < 0 or val < 0 or test < 0:
-            return False, "Oranlar negatif olamaz"
+            return False, "Ratios cannot be negative"
         
         total = train + val + test
         if abs(total - 1.0) > 0.01:
-            return False, f"Oranların toplamı 1.0 olmalı (şu an: {total:.2f})"
+            return False, f"Sum of ratios must be 1.0 (current: {total:.2f})"
         
         if train == 0:
-            return False, "Train oranı 0 olamaz"
+            return False, "Train ratio cannot be 0"
         
         return True, ""

@@ -1,4 +1,4 @@
-"""LocalFlow - Yerel Veri Etiketleme Aracı"""
+"""LocalTagger - Yerel Veri Etiketleme Aracı"""
 
 __version__ = "0.5.0"
-__author__ = "LocalFlow Team"
+__author__ = "LocalTagger Team"

@@ -1,7 +1,7 @@
 """
-Sınıf Yönetimi
-==============
-Etiket sınıflarını yönetir (ekleme, silme, renk atama).
+Class Management
+================
+Manages annotation classes (add, remove, assign color).
 """
 
 from pathlib import Path
@@ -12,7 +12,7 @@ import random
 
 @dataclass
 class LabelClass:
-    """Bir etiket sınıfını temsil eder."""
+    """Represents an annotation class."""
     id: int
     name: str
     color: str  # Hex format: "#FF0000"
@@ -27,32 +27,32 @@ class LabelClass:
 
 class ClassManager:
     """
-    Etiket sınıflarını yönetir.
-    classes.txt dosyası ile uyumlu çalışır.
+    Manages annotation classes.
+    Works compatible with classes.txt file.
     """
     
-    # Varsayılan renk paleti - birbirinden farklı, ayırt edilebilir renkler
+    # Default color palette - distinct colors
     DEFAULT_COLORS = [
-        "#FF0000",  # Kırmızı
-        "#00FF00",  # Yeşil
-        "#0000FF",  # Mavi
-        "#FFFF00",  # Sarı
-        "#FF00FF",  # Mor
+        "#FF0000",  # Red
+        "#00FF00",  # Green
+        "#0000FF",  # Blue
+        "#FFFF00",  # Yellow
+        "#FF00FF",  # Purple
         "#00FFFF",  # Cyan
-        "#FF8C00",  # Turuncu
-        "#8B00FF",  # Menekşe
-        "#00CED1",  # Turkuaz
-        "#FF1493",  # Pembe
-        "#32CD32",  # Limon Yeşili
-        "#FFD700",  # Altın
+        "#FF8C00",  # Orange
+        "#8B00FF",  # Violet
+        "#00CED1",  # Turquoise
+        "#FF1493",  # Pink
+        "#32CD32",  # Lime Green
+        "#FFD700",  # Gold
         "#DC143C",  # Crimson
-        "#4169E1",  # Kraliyet Mavi
-        "#228B22",  # Orman Yeşili
-        "#FF6347",  # Domates
-        "#9400D3",  # Koyu Mor
-        "#20B2AA",  # Açık Deniz Yeşili
-        "#F08080",  # Açık Mercan
-        "#6B8E23",  # Zeytin
+        "#4169E1",  # Royal Blue
+        "#228B22",  # Forest Green
+        "#FF6347",  # Tomato
+        "#9400D3",  # Dark Violet
+        "#20B2AA",  # Light Sea Green
+        "#F08080",  # Light Coral
+        "#6B8E23",  # Olive
     ]
     
     def __init__(self):
@@ -62,26 +62,26 @@ class ClassManager:
         
     @property
     def classes(self) -> List[LabelClass]:
-        """Tüm sınıfları döndürür."""
+        """Returns all classes."""
         return self._classes.copy()
     
     @property
     def count(self) -> int:
-        """Sınıf sayısını döndürür."""
+        """Returns class count."""
         return len(self._classes)
     
     def add_class(self, name: str, color: Optional[str] = None) -> LabelClass:
         """
-        Yeni sınıf ekler.
+        Adds a new class.
         
         Args:
-            name: Sınıf adı
-            color: Hex renk kodu (opsiyonel, otomatik atanır)
+            name: Class name
+            color: Hex color code (optional, assigned automatically)
             
         Returns:
-            Oluşturulan LabelClass
+            Created LabelClass
         """
-        # Otomatik renk ata
+        # Assign automatic color
         if color is None:
             color = self._get_next_color()
             
@@ -98,22 +98,22 @@ class ClassManager:
     
     def add_class_with_id(self, class_id: int, name: str, color: Optional[str] = None) -> LabelClass:
         """
-        Belirli bir ID ile sınıf ekler (etiketli veri yüklerken kullanılır).
+        Adds a class with a specific ID (used when loading labeled data).
         
         Args:
-            class_id: Sınıf ID'si
-            name: Sınıf adı
-            color: Hex renk kodu (opsiyonel)
+            class_id: Class ID
+            name: Class name
+            color: Hex color code (optional)
             
         Returns:
-            Oluşturulan LabelClass
+            Created LabelClass
         """
-        # Eğer bu ID zaten varsa, güncelle
+        # If ID already exists, return current
         existing = self.get_by_id(class_id)
         if existing:
             return existing
         
-        # Otomatik renk ata
+        # Assign automatic color
         if color is None:
             color = self._get_next_color()
             
@@ -125,7 +125,7 @@ class ClassManager:
         
         self._classes.append(label_class)
         
-        # _next_id'yi güncelle (en büyük ID'den büyük olmalı)
+        # Update _next_id (must be larger than max ID)
         if class_id >= self._next_id:
             self._next_id = class_id + 1
         
@@ -133,10 +133,10 @@ class ClassManager:
     
     def remove_class(self, class_id: int) -> bool:
         """
-        Sınıfı ID'ye göre siler.
+        Removes class by ID.
         
         Returns:
-            Silme başarılı ise True
+            True if deletion successful
         """
         for i, cls in enumerate(self._classes):
             if cls.id == class_id:
@@ -147,10 +147,10 @@ class ClassManager:
     def update_class(self, class_id: int, name: Optional[str] = None, 
                      color: Optional[str] = None) -> bool:
         """
-        Sınıf bilgilerini günceller.
+        Updates class information.
         
         Returns:
-            Güncelleme başarılı ise True
+            True if update successful
         """
         label_class = self.get_by_id(class_id)
         if label_class is None:
@@ -164,57 +164,57 @@ class ClassManager:
         return True
     
     def get_by_id(self, class_id: int) -> Optional[LabelClass]:
-        """ID'ye göre sınıf döndürür."""
+        """Returns class by ID."""
         for cls in self._classes:
             if cls.id == class_id:
                 return cls
         return None
     
     def get_by_name(self, name: str) -> Optional[LabelClass]:
-        """İsme göre sınıf döndürür."""
+        """Returns class by name."""
         for cls in self._classes:
             if cls.name == name:
                 return cls
         return None
     
     def get_index(self, class_id: int) -> int:
-        """Sınıfın listedeki indeksini döndürür (YOLO export için)."""
+        """Returns the index of the class in the list (for YOLO export)."""
         for i, cls in enumerate(self._classes):
             if cls.id == class_id:
                 return i
         return -1
     
     def _get_next_color(self) -> str:
-        """Sonraki otomatik rengi döndürür."""
+        """Returns next automatic color."""
         if self._color_index < len(self.DEFAULT_COLORS):
             color = self.DEFAULT_COLORS[self._color_index]
             self._color_index += 1
         else:
-            # Rastgele renk üret
+            # Generate random color
             color = "#{:06x}".format(random.randint(0, 0xFFFFFF))
         return color
     
     # ─────────────────────────────────────────────────────────────────
-    # Dosya İşlemleri
+    # File Operations
     # ─────────────────────────────────────────────────────────────────
     
     def save_to_file(self, file_path: Path | str):
         """
-        Sınıfları classes.txt formatında kaydeder.
+        Saves classes in classes.txt format.
         
-        Format (her satır):
+        Format (each line):
             class_name
             
-        Ekstra metadata için ayrı JSON dosyası kullanılabilir.
+        Separate JSON file can be used for extra metadata.
         """
         file_path = Path(file_path)
         
-        # Sadece isimler (YOLO uyumlu classes.txt)
+        # Only names (YOLO compatible classes.txt)
         with open(file_path, "w", encoding="utf-8") as f:
             for cls in self._classes:
                 f.write(f"{cls.name}\n")
                 
-        # Renk bilgilerini ayrı dosyada sakla
+        # Save color info in separate file
         meta_path = file_path.with_suffix(".json")
         import json
         meta = {
@@ -226,8 +226,8 @@ class ClassManager:
     
     def load_from_file(self, file_path: Path | str):
         """
-        classes.txt dosyasından sınıfları yükler.
-        Eğer .json metadata varsa renkleri de yükler.
+        Loads classes from classes.txt file.
+        Also loads colors if .json metadata exists.
         """
         file_path = Path(file_path)
         
@@ -237,7 +237,7 @@ class ClassManager:
         self._classes.clear()
         self._color_index = 0
         
-        # Önce JSON metadata'yı dene
+        # Try JSON metadata first
         meta_path = file_path.with_suffix(".json")
         if meta_path.exists():
             import json
@@ -247,13 +247,13 @@ class ClassManager:
                 for cls_data in meta.get("classes", []):
                     self._classes.append(LabelClass.from_dict(cls_data))
                 self._next_id = meta.get("next_id", len(self._classes))
-                # Color index'i sınıf sayısına göre güncelle (yeni sınıflar farklı renk alsın)
+                # Update color index based on class count (new classes get different colors)
                 self._color_index = len(self._classes)
                 return
             except (json.JSONDecodeError, KeyError):
-                pass  # JSON hatalı, txt'den yükle
+                pass  # JSON broken, load from txt
         
-        # Sadece classes.txt'den yükle
+        # Load from classes.txt only
         with open(file_path, "r", encoding="utf-8") as f:
             for line in f:
                 name = line.strip()
@@ -261,7 +261,7 @@ class ClassManager:
                     self.add_class(name)
     
     def clear(self):
-        """Tüm sınıfları temizler."""
+        """Clears all classes."""
         self._classes.clear()
         self._next_id = 0
         self._color_index = 0

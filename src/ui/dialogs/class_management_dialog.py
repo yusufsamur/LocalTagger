@@ -17,12 +17,12 @@ from core.class_manager import ClassManager, LabelClass
 
 class ClassManagementDialog(QDialog):
     """
-    Sınıf yönetimi dialogu.
-    Sınıf ekleme, silme, yeniden adlandırma ve renk değiştirme işlemlerini yönetir.
+    Class management dialog.
+    Manages adding, deleting, renaming and changing colors of classes.
     """
     
-    # Sinyaller
-    classes_changed = Signal()  # Sınıflar değiştiğinde
+    # Signals
+    classes_changed = Signal()  # When classes changed
     
     def __init__(self, class_manager: ClassManager, annotation_manager=None, parent=None):
         super().__init__(parent)
@@ -45,7 +45,7 @@ class ClassManagementDialog(QDialog):
         title.setStyleSheet("font-weight: bold; font-size: 16px;")
         layout.addWidget(title)
         
-        # Tablo
+        # Table
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["ID", self.tr("Class Name"), self.tr("Color"), self.tr("Labels"), self.tr("Images")])
@@ -59,7 +59,7 @@ class ClassManagementDialog(QDialog):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self.table)
         
-        # Butonlar
+        # Buttons
         button_layout = QHBoxLayout()
         
         self.add_btn = QPushButton(self.tr("➕ Add New Class"))
@@ -97,10 +97,10 @@ class ClassManagementDialog(QDialog):
         self.table.cellDoubleClicked.connect(self._on_cell_double_clicked)
         
     def _refresh_table(self):
-        """Tabloyu yenile."""
+        """Refresh table."""
         self.table.setRowCount(0)
         
-        # Sınıf başına etiket ve fotoğraf sayısını hesapla
+        # Calculate annotation and image count per class
         class_counts, class_images = self._count_annotations_per_class()
         
         for label_class in self._class_manager.classes:
@@ -113,17 +113,17 @@ class ClassManagementDialog(QDialog):
             id_item.setData(Qt.ItemDataRole.UserRole, label_class.id)
             self.table.setItem(row, 0, id_item)
             
-            # Sınıf adı
+            # Class name
             name_item = QTableWidgetItem(label_class.name)
             self.table.setItem(row, 1, name_item)
             
-            # Renk
+            # Color
             color_item = QTableWidgetItem()
             color_item.setIcon(self._create_color_icon(label_class.color, 24))
             color_item.setText(label_class.color)
             self.table.setItem(row, 2, color_item)
             
-            # Etiket sayısı
+            # Annotation count
             count = class_counts.get(label_class.id, 0)
             count_item = QTableWidgetItem(str(count))
             count_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -131,7 +131,7 @@ class ClassManagementDialog(QDialog):
                 count_item.setForeground(QColor("#888888"))
             self.table.setItem(row, 3, count_item)
             
-            # Fotoğraf sayısı
+            # Image count
             img_count = class_images.get(label_class.id, 0)
             img_item = QTableWidgetItem(str(img_count))
             img_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -140,17 +140,17 @@ class ClassManagementDialog(QDialog):
             self.table.setItem(row, 4, img_item)
     
     def _count_annotations_per_class(self) -> tuple:
-        """Her sınıf için toplam etiket ve fotoğraf sayısını hesapla.
+        """Calculate total annotation and image count per class.
         
         Returns:
-            (counts, images) - counts: {class_id: etiket_sayısı}, images: {class_id: fotoğraf_sayısı}
+            (counts, images) - counts: {class_id: count}, images: {class_id: image_count}
         """
-        counts = {}  # class_id -> toplam etiket sayısı
-        images = {}  # class_id -> kaç fotoğrafta var
+        counts = {}  # class_id -> total annotation count
+        images = {}  # class_id -> image count
         
         if self._annotation_manager:
             for image_path, annotations in self._annotation_manager._annotations.items():
-                # Bu fotoğraftaki sınıfları takip et
+                # Track classes in this image
                 classes_in_image = set()
                 
                 for bbox in annotations.bboxes:
@@ -160,14 +160,14 @@ class ClassManagementDialog(QDialog):
                     counts[polygon.class_id] = counts.get(polygon.class_id, 0) + 1
                     classes_in_image.add(polygon.class_id)
                 
-                # Her sınıf için fotoğraf sayısını artır
+                # Increase image count for each class
                 for class_id in classes_in_image:
                     images[class_id] = images.get(class_id, 0) + 1
         
         return counts, images
             
     def _create_color_icon(self, color_hex: str, size: int = 16) -> QIcon:
-        """Renk ikonu oluştur."""
+        """Create color icon."""
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.GlobalColor.transparent)
         
@@ -181,7 +181,7 @@ class ClassManagementDialog(QDialog):
         return QIcon(pixmap)
     
     def _get_selected_class_id(self) -> int:
-        """Seçili sınıfın ID'sini döndür."""
+        """Returns ID of selected class."""
         row = self.table.currentRow()
         if row < 0:
             return -1
@@ -191,7 +191,7 @@ class ClassManagementDialog(QDialog):
         return -1
     
     def _add_class(self):
-        """Yeni sınıf ekle."""
+        """Add new class."""
         name, ok = QInputDialog.getText(
             self, self.tr("Add New Class"), self.tr("Class name:"),
             text=""
@@ -201,7 +201,7 @@ class ClassManagementDialog(QDialog):
             self._refresh_table()
             self.classes_changed.emit()
             
-            # Yeni satırı seç
+            # Select new row
             for row in range(self.table.rowCount()):
                 item = self.table.item(row, 0)
                 if item and item.data(Qt.ItemDataRole.UserRole) == new_class.id:
@@ -209,7 +209,7 @@ class ClassManagementDialog(QDialog):
                     break
     
     def _rename_class(self):
-        """Seçili sınıfı yeniden adlandır veya başka bir sınıfla birleştir."""
+        """Rename selected class or merge with another."""
         class_id = self._get_selected_class_id()
         if class_id < 0:
             QMessageBox.warning(self, self.tr("Warning"), self.tr("Please select a class."))
@@ -226,11 +226,11 @@ class ClassManagementDialog(QDialog):
         if ok and name.strip():
             new_name = name.strip()
             
-            # Aynı isimde başka bir sınıf var mı kontrol et
+            # Check if class with same name exists
             existing_class = self._class_manager.get_by_name(new_name)
             
             if existing_class and existing_class.id != class_id:
-                # Birleştirme seçeneği sun
+                # Offer merge option
                 result = QMessageBox.question(
                     self, self.tr("Merge Classes"),
                     self.tr("A class named '{}' already exists.\n\n"
@@ -244,17 +244,17 @@ class ClassManagementDialog(QDialog):
                 if result == QMessageBox.StandardButton.Yes:
                     self._merge_classes(class_id, existing_class.id)
             else:
-                # Sadece ismi güncelle
+                # Update name only
                 self._class_manager.update_class(class_id, name=new_name)
                 self._refresh_table()
                 self.classes_changed.emit()
     
     def _merge_classes(self, source_id: int, target_id: int):
-        """İki sınıfı birleştir - kaynak sınıftaki tüm etiketleri hedef sınıfa taşı.
+        """Merge two classes - move all labels from source to target.
         
         Args:
-            source_id: Silinecek kaynak sınıf ID'si
-            target_id: Etiketlerin taşınacağı hedef sınıf ID'si
+            source_id: Source class ID (to be deleted)
+            target_id: Target class ID (to move labels to)
         """
         source_class = self._class_manager.get_by_id(source_id)
         target_class = self._class_manager.get_by_id(target_id)
@@ -262,7 +262,7 @@ class ClassManagementDialog(QDialog):
         if not source_class or not target_class:
             return
         
-        # Tüm etiketlerdeki source_id'yi target_id ile değiştir
+        # Change source_id to target_id in all labels
         updated_count = 0
         updated_images = []
         
@@ -282,18 +282,18 @@ class ClassManagementDialog(QDialog):
                         updated_count += 1
                         image_updated = True
                 
-                # Bu görseli dirty olarak işaretle ve kaydet
+                # Mark image annotation as dirty and save
                 if image_updated:
                     self._annotation_manager._mark_dirty(image_path)
                     updated_images.append(image_path)
             
-            # Tüm değiştirilen görsellerin etiketlerini diske kaydet
+            # Save labels of all updated images to disk
             from pathlib import Path
             for image_path in updated_images:
                 image_p = Path(image_path)
                 parent = image_p.parent
                 
-                # Labels klasörünü belirle
+                # Determine labels directory
                 if parent.name.lower() == "images":
                     labels_dir = parent.parent / "labels"
                 else:
@@ -302,10 +302,10 @@ class ClassManagementDialog(QDialog):
                 labels_dir.mkdir(parents=True, exist_ok=True)
                 self._annotation_manager.save_yolo(image_path, labels_dir)
         
-        # Kaynak sınıfı sil
+        # Remove source class
         self._class_manager.remove_class(source_id)
         
-        # classes.txt dosyasını da güncelle
+        # Update classes.txt
         if updated_images:
             from pathlib import Path
             first_image = Path(updated_images[0])
@@ -316,7 +316,7 @@ class ClassManagementDialog(QDialog):
                 labels_dir = parent / "labels"
             self._class_manager.save_to_file(labels_dir / "classes.txt")
         
-        # Tabloyu yenile
+        # Refresh table
         self._refresh_table()
         self.classes_changed.emit()
         
@@ -327,7 +327,7 @@ class ClassManagementDialog(QDialog):
         )
     
     def _change_color(self):
-        """Seçili sınıfın rengini değiştir."""
+        """Change color of selected class."""
         class_id = self._get_selected_class_id()
         if class_id < 0:
             QMessageBox.warning(self, self.tr("Warning"), self.tr("Please select a class."))
@@ -346,7 +346,7 @@ class ClassManagementDialog(QDialog):
             self.classes_changed.emit()
     
     def _delete_class(self):
-        """Seçili sınıfı sil."""
+        """Delete selected class."""
         class_id = self._get_selected_class_id()
         if class_id < 0:
             QMessageBox.warning(self, self.tr("Warning"), self.tr("Please select a class."))
@@ -356,7 +356,7 @@ class ClassManagementDialog(QDialog):
         if not label_class:
             return
         
-        # Eğer bu sınıfa ait etiket varsa uyar
+        # Warn if class has annotations
         annotation_count = 0
         affected_images = []
         if self._annotation_manager:
@@ -394,7 +394,7 @@ class ClassManagementDialog(QDialog):
             if result != QMessageBox.StandardButton.Yes:
                 return
         
-        # Bu sınıfa ait tüm etiketleri sil
+        # Delete all labels belonging to this class
         if self._annotation_manager and annotation_count > 0:
             from pathlib import Path
             
@@ -403,17 +403,17 @@ class ClassManagementDialog(QDialog):
                 if not annotations:
                     continue
                 
-                # Bu sınıfa ait bbox'ları sil (tersten sil ki indeksler kaymasın)
+                # Delete bboxes of this class (reverse order to keep indices valid)
                 for i in range(len(annotations.bboxes) - 1, -1, -1):
                     if annotations.bboxes[i].class_id == class_id:
                         annotations.bboxes.pop(i)
                 
-                # Bu sınıfa ait polygon'ları sil
+                # Delete polygons of this class
                 for i in range(len(annotations.polygons) - 1, -1, -1):
                     if annotations.polygons[i].class_id == class_id:
                         annotations.polygons.pop(i)
                 
-                # Değişiklikleri diske kaydet
+                # Save changes to disk
                 image_p = Path(image_path)
                 parent = image_p.parent
                 if parent.name.lower() == "images":
@@ -424,10 +424,10 @@ class ClassManagementDialog(QDialog):
                 labels_dir.mkdir(parents=True, exist_ok=True)
                 self._annotation_manager.save_yolo(image_path, labels_dir)
         
-        # Sınıfı bellekten sil
+        # Remove class from memory
         self._class_manager.remove_class(class_id)
         
-        # classes.txt dosyasını güncelle
+        # Update classes.txt
         labels_dir = None
         if affected_images:
             from pathlib import Path
@@ -438,7 +438,7 @@ class ClassManagementDialog(QDialog):
             else:
                 labels_dir = parent / "labels"
         elif self._annotation_manager and self._annotation_manager._annotations:
-            # Etiketsiz sınıf siliniyorsa, herhangi bir görsel yolunu kullan
+            # If deleting empty class, use any image path
             from pathlib import Path
             first_image = Path(list(self._annotation_manager._annotations.keys())[0])
             parent = first_image.parent
@@ -461,8 +461,8 @@ class ClassManagementDialog(QDialog):
             )
     
     def _on_cell_double_clicked(self, row: int, column: int):
-        """Hücreye çift tıklandığında."""
-        if column == 1:  # Sınıf adı
+        """Table cell double clicked."""
+        if column == 1:  # Class Name
             self._rename_class()
-        elif column == 2:  # Renk
+        elif column == 2:  # Color
             self._change_color()

@@ -1,7 +1,7 @@
 """
-Bounding Box Aracı
-==================
-Dikdörtgen kutu çizimi için araç.
+Bounding Box Tool
+=================
+Tool for drawing rectangular boxes.
 """
 
 from typing import Optional
@@ -13,17 +13,17 @@ from .base_tool import BaseTool, ToolType
 
 
 class BBoxTool(BaseTool):
-    """Bounding Box (Dikdörtgen Kutu) çizim aracı."""
+    """Bounding Box drawing tool."""
     
-    # Varsayılan stil
-    DEFAULT_COLOR = QColor(255, 0, 0)  # Kırmızı
+    # Default style
+    DEFAULT_COLOR = QColor(255, 0, 0)  # Red
     LINE_WIDTH = 2
     FILL_OPACITY = 0.2
     
     def __init__(self, scene: QGraphicsScene):
         super().__init__(scene)
         
-        # Çizim durumu
+        # Drawing state
         self._is_drawing = False
         self._start_pos: Optional[QPointF] = None
         self._temp_rect: Optional[QGraphicsRectItem] = None
@@ -42,11 +42,11 @@ class BBoxTool(BaseTool):
         return "W"
     
     def set_color(self, color: QColor):
-        """Çizim rengini ayarla."""
+        """Set drawing color."""
         self._color = color
     
     def on_mouse_press(self, pos: QPointF, button: int) -> bool:
-        """Çizime başla."""
+        """Start drawing."""
         if button != Qt.MouseButton.LeftButton:
             return False
             
@@ -56,23 +56,23 @@ class BBoxTool(BaseTool):
         self._is_drawing = True
         self._start_pos = pos
         
-        # Geçici dikdörtgen oluştur
+        # Create temporary rectangle
         self._create_temp_rect(pos)
         
         return True
     
     def on_mouse_move(self, pos: QPointF) -> bool:
-        """Çizimi güncelle."""
+        """Update drawing."""
         if not self._is_drawing or self._temp_rect is None:
             return False
             
-        # Dikdörtgeni güncelle
+        # Update rectangle
         self._update_temp_rect(pos)
         
         return True
     
     def on_mouse_release(self, pos: QPointF, button: int) -> bool:
-        """Çizimi tamamla."""
+        """Complete drawing."""
         if button != Qt.MouseButton.LeftButton:
             return False
             
@@ -81,14 +81,14 @@ class BBoxTool(BaseTool):
             
         self._is_drawing = False
         
-        # Minimum boyut kontrolü (çok küçük kutular oluşmasın)
+        # Minimum size check (prevent very small boxes)
         if self._temp_rect is not None:
             rect = self._temp_rect.rect()
             if rect.width() < 5 or rect.height() < 5:
-                # Çok küçük, iptal et
+                # Too small, cancel
                 self._scene.removeItem(self._temp_rect)
             else:
-                # Kalıcı yap (geçici stili kaldır)
+                # Make permanent (remove temp style)
                 self._finalize_rect()
                 
         self._temp_rect = None
@@ -97,7 +97,7 @@ class BBoxTool(BaseTool):
         return True
     
     def cancel(self):
-        """Mevcut çizimi iptal et."""
+        """Cancel current drawing."""
         if self._temp_rect is not None:
             self._scene.removeItem(self._temp_rect)
             self._temp_rect = None
@@ -105,18 +105,18 @@ class BBoxTool(BaseTool):
         self._start_pos = None
     
     # ─────────────────────────────────────────────────────────────────
-    # Yardımcı Metodlar
+    # Helper Methods
     # ─────────────────────────────────────────────────────────────────
     
     def _create_temp_rect(self, pos: QPointF):
-        """Geçici dikdörtgen oluştur."""
+        """Create temporary rectangle."""
         rect = QRectF(pos, pos)
         self._temp_rect = QGraphicsRectItem(rect)
         
-        # Stil ayarla
+        # Set style
         pen = QPen(self._color, self.LINE_WIDTH)
-        pen.setStyle(Qt.PenStyle.DashLine)  # Çizim sırasında kesikli çizgi
-        pen.setCosmetic(True)  # Zoom'dan bağımsız sabit çizgi kalınlığı
+        pen.setStyle(Qt.PenStyle.DashLine)  # Dashed line while drawing
+        pen.setCosmetic(True)  # Fixed line width independent of zoom
         self._temp_rect.setPen(pen)
         
         fill_color = QColor(self._color)
@@ -126,11 +126,11 @@ class BBoxTool(BaseTool):
         self._scene.addItem(self._temp_rect)
     
     def _update_temp_rect(self, pos: QPointF):
-        """Geçici dikdörtgeni yeni pozisyona göre güncelle."""
+        """Update temporary rectangle with new position."""
         if self._temp_rect is None or self._start_pos is None:
             return
             
-        # Sol-üst ve sağ-alt köşeleri hesapla
+        # Calculate top-left and bottom-right corners
         x1 = min(self._start_pos.x(), pos.x())
         y1 = min(self._start_pos.y(), pos.y())
         x2 = max(self._start_pos.x(), pos.x())
@@ -140,15 +140,14 @@ class BBoxTool(BaseTool):
         self._temp_rect.setRect(rect)
     
     def _finalize_rect(self):
-        """Dikdörtgeni kalıcı yap."""
+        """Make rectangle permanent."""
         if self._temp_rect is None:
             return
             
-        # Düz çizgi stiline geç
+        # Switch to solid line style
         pen = QPen(self._color, self.LINE_WIDTH)
         pen.setStyle(Qt.PenStyle.SolidLine)
-        pen.setCosmetic(True)  # Zoom'dan bağımsız sabit çizgi kalınlığı
+        pen.setCosmetic(True)  # Fixed line width independent of zoom
         self._temp_rect.setPen(pen)
         
-        # TODO: Etiket datasını kaydet
-        # TODO: Handles (köşe tutamakları) ekle
+        # Rectangle made permanent, data recording is managed via app.py signals.

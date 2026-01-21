@@ -1,7 +1,7 @@
 """
-Diyalog Pencereleri
-===================
-Sınıf ekleme, dışa aktarım ve ayar diyalogları.
+Dialog Windows
+==============
+Class management, export and settings dialogs.
 """
 
 from .class_management_dialog import ClassManagementDialog

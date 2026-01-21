@@ -1,7 +1,7 @@
 """
 Graphics View
 =============
-Tuval kontrolü: Zoom, Pan, Crosshair ve mouse event handling.
+Canvas control: Zoom, Pan, Crosshair and mouse event handling.
 """
 
 from pathlib import Path
@@ -23,40 +23,40 @@ from .editable_polygon_item import EditablePolygonItem
 
 class AnnotationView(QGraphicsView):
     """
-    Etiketleme tuvalinin görünüm sınıfı.
-    Zoom, Pan, Crosshair ve çizim araç kontrollerini sağlar.
+    View class for the annotation canvas.
+    Provides Zoom, Pan, Crosshair and drawing tool controls.
     """
     
-    # Sinyaller
+    # Signals
     zoom_changed = Signal(float)
     mouse_position = Signal(int, int)
     bbox_created = Signal(float, float, float, float)  # x1, y1, x2, y2
     polygon_created = Signal(list)  # [(x1,y1), (x2,y2), ...]
     files_dropped = Signal(list)
     
-    # BBox düzenleme sinyalleri
+    # BBox editing signals
     bbox_moved = Signal(int, QRectF)  # (index, new_rect)
     bbox_class_change_requested = Signal(int, QPointF)  # (index, position)
     bbox_delete_requested = Signal(int)  # index
     
-    # Polygon düzenleme sinyalleri
+    # Polygon editing signals
     polygon_moved = Signal(int, list)  # (index, new_points)
     polygon_class_change_requested = Signal(int, QPointF)  # (index, position)
     polygon_delete_requested = Signal(int)  # index
     
-    # Annotation tıklama sinyali - otomatik select moduna geçiş için
-    annotation_clicked = Signal()  # herhangi bir annotasyona tıklandığında
+    # Annotation click signal - to switch to auto select mode
+    annotation_clicked = Signal()  # when any annotation is clicked
     
-    # SAM AI sinyali
-    sam_click_requested = Signal(int, int, str)  # (x, y, mode) - AI ile tıklama
-    sam_box_requested = Signal(int, int, int, int, str)  # (x1, y1, x2, y2, mode) - AI ile bbox'tan
+    # SAM AI signals
+    sam_click_requested = Signal(int, int, str)  # (x, y, mode) - Click with AI
+    sam_box_requested = Signal(int, int, int, int, str)  # (x1, y1, x2, y2, mode) - From bbox with AI
     
-    # Zoom limitleri
+    # Zoom limits
     MIN_ZOOM = 0.1
     MAX_ZOOM = 10.0
     ZOOM_FACTOR = 1.15
     
-    # Araç tipleri
+    # Tool types
     TOOL_NONE = "none"
     TOOL_SELECT = "select"
     TOOL_BBOX = "bbox"
@@ -65,14 +65,14 @@ class AnnotationView(QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        # Sahne oluştur
+        # Create scene
         self._scene = AnnotationScene(self)
         self.setScene(self._scene)
         
-        # Drag & Drop aktif
+        # Enable Drag & Drop
         self.setAcceptDrops(True)
         
-        # Görünüm ayarları
+        # View settings
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
@@ -81,41 +81,41 @@ class AnnotationView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
-        self.setMouseTracking(True)  # Crosshair için gerekli
+        self.setMouseTracking(True)  # Required for Crosshair
         
-        # Durum değişkenleri
+        # State variables
         self._zoom_level = 1.0
         self._is_panning = False
         self._pan_start_pos = QPointF()
         
-        # Araç durumu
+        # Tool state
         self._current_tool = self.TOOL_NONE
         self._is_drawing = False
         self._draw_start_pos = QPointF()
         self._temp_rect_item = None
         
-        # Polygon çizim durumu
+        # Polygon drawing state
         self._polygon_points: List[QPointF] = []
         self._temp_polygon_item = None
-        self._temp_polygon_lines = []  # Geçici çizgi öğeleri
-        self._temp_polygon_dots = []   # Nokta göstergeleri
+        self._temp_polygon_lines = []  # Temporary line items
+        self._temp_polygon_dots = []   # Dot indicators
         
-        # Crosshair çizgileri
+        # Crosshair lines
         self._crosshair_h = None
         self._crosshair_v = None
         self._crosshair_visible = False
         
-        # Çizim rengi
+        # Drawing color
         self._draw_color = QColor(255, 50, 50)
         self._crosshair_color = QColor(0, 200, 255, 180)
         
-        # Çizilmiş annotation öğeleri (kalici etiketler)
+        # Drawn annotation items (persistent labels)
         self._annotation_items: List = []
         
-        # SAM modu: None, "pixel", veya "box"
+        # SAM mode: None, "pixel", or "box"
         self._sam_mode = None
         
-        # Polygon+AI için bbox çizimi
+        # BBox drawing for Polygon+AI
         self._is_drawing_bbox_for_polygon = False
         
     @property
@@ -131,19 +131,19 @@ class AnnotationView(QGraphicsView):
     # ─────────────────────────────────────────────────────────────────
     
     def dragEnterEvent(self, event: QDragEnterEvent):
-        """Sürükleme girişi."""
+        """Drag enter."""
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             event.ignore()
             
     def dragMoveEvent(self, event):
-        """Sürükleme hareketi."""
+        """Drag move."""
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
             
     def dropEvent(self, event: QDropEvent):
-        """Bırakma olayı."""
+        """Drop event."""
         if event.mimeData().hasUrls():
             paths = []
             for url in event.mimeData().urls():
@@ -155,24 +155,24 @@ class AnnotationView(QGraphicsView):
             event.acceptProposedAction()
     
     # ─────────────────────────────────────────────────────────────────
-    # Crosshair (Kılavuz Çizgiler)
+    # Crosshair (Guide Lines)
     # ─────────────────────────────────────────────────────────────────
     
     def _show_crosshair(self):
-        """Crosshair'i göster."""
+        """Show Crosshair."""
         if self._crosshair_visible:
             return
             
         pen = QPen(self._crosshair_color, 1)
         pen.setStyle(Qt.PenStyle.DashLine)
         
-        # Yatay çizgi
+        # Horizontal line
         self._crosshair_h = QGraphicsLineItem()
         self._crosshair_h.setPen(pen)
         self._crosshair_h.setZValue(1000)
         self._scene.addItem(self._crosshair_h)
         
-        # Dikey çizgi
+        # Vertical line
         self._crosshair_v = QGraphicsLineItem()
         self._crosshair_v.setPen(pen)
         self._crosshair_v.setZValue(1000)
@@ -181,18 +181,18 @@ class AnnotationView(QGraphicsView):
         self._crosshair_visible = True
         
     def _hide_crosshair(self):
-        """Crosshair'i gizle."""
+        """Hide Crosshair."""
         if not self._crosshair_visible:
             return
         
-        # C++ nesnesi hala geçerli mi kontrol et
+        # Check if C++ object is still valid
         try:
             if self._crosshair_h is not None:
-                # Nesne hala sahne içindeyse kaldır
+                # Remove if object is still in scene
                 if self._crosshair_h.scene() is not None:
                     self._scene.removeItem(self._crosshair_h)
         except RuntimeError:
-            pass  # C++ nesnesi zaten silinmiş
+            pass  # C++ object already deleted
         finally:
             self._crosshair_h = None
             
@@ -208,23 +208,23 @@ class AnnotationView(QGraphicsView):
         self._crosshair_visible = False
         
     def _update_crosshair(self, scene_pos: QPointF):
-        """Crosshair pozisyonunu güncelle."""
+        """Update crosshair position."""
         if not self._crosshair_visible or not self._scene.has_image:
             return
         
-        # C++ nesneleri hala geçerli mi kontrol et
+        # Check if C++ objects are still valid
         try:
             if self._crosshair_h is None or self._crosshair_v is None:
                 self._crosshair_visible = False
                 return
-            # Sahne içindeler mi kontrol et
+            # Check if they are in scene
             if self._crosshair_h.scene() is None or self._crosshair_v.scene() is None:
                 self._crosshair_visible = False
                 self._crosshair_h = None
                 self._crosshair_v = None
                 return
         except RuntimeError:
-            # C++ nesnesi silinmiş
+            # C++ object deleted
             self._crosshair_visible = False
             self._crosshair_h = None
             self._crosshair_v = None
@@ -234,26 +234,26 @@ class AnnotationView(QGraphicsView):
         x = scene_pos.x()
         y = scene_pos.y()
         
-        # Görsel sınırları içinde tut
+        # Keep within image bounds
         x = max(0, min(x, img_w))
         y = max(0, min(y, img_h))
         
-        # Yatay çizgi (tam genişlik)
+        # Horizontal line (full width)
         self._crosshair_h.setLine(QLineF(0, y, img_w, y))
-        # Dikey çizgi (tam yükseklik)
+        # Vertical line (full height)
         self._crosshair_v.setLine(QLineF(x, 0, x, img_h))
     
     # ─────────────────────────────────────────────────────────────────
-    # Araç Yönetimi
+    # Tool Management
     # ─────────────────────────────────────────────────────────────────
     
     def set_tool(self, tool: str):
-        """Aktif aracı değiştir."""
+        """Change active tool."""
         self.cancel_drawing()
         self._current_tool = tool
         
         if tool in (self.TOOL_BBOX, self.TOOL_POLYGON):
-            # CrossCursor'ı hem view hem viewport'a uygula
+            # Apply CrossCursor to both view and viewport
             self.setCursor(Qt.CursorShape.CrossCursor)
             self.viewport().setCursor(Qt.CursorShape.CrossCursor)
             if self._scene.has_image:
@@ -264,28 +264,28 @@ class AnnotationView(QGraphicsView):
             self._hide_crosshair()
     
     def set_draw_color(self, color: QColor | str):
-        """Çizim rengini ayarla."""
+        """Set drawing color."""
         if isinstance(color, str):
             color = QColor(color)
         self._draw_color = color
     
     def set_sam_mode(self, mode: str):
-        """SAM modunu ayarla - 'pixel', 'box', veya None."""
+        """Set SAM mode - 'pixel', 'box', or None."""
         self._sam_mode = mode
     
     @property
     def sam_mode(self) -> str:
-        """Aktif SAM modu."""
+        """Active SAM mode."""
         return self._sam_mode
     
     @property
     def sam_enabled(self) -> bool:
-        """Herhangi bir SAM modu etkin mi?"""
+        """Is any SAM mode enabled?"""
         return self._sam_mode is not None
             
     def cancel_drawing(self):
-        """Mevcut çizimi iptal et."""
-        # BBox temizle
+        """Cancel current drawing."""
+        # Clear BBox
         if self._temp_rect_item:
             try:
                 if self._temp_rect_item.scene():
@@ -294,14 +294,14 @@ class AnnotationView(QGraphicsView):
                 pass
             self._temp_rect_item = None
         
-        # Polygon temizle
+        # Clear Polygon
         self._clear_polygon_temp_items()
         self._polygon_points.clear()
         
         self._is_drawing = False
     
     def _clear_polygon_temp_items(self):
-        """Polygon geçici öğelerini temizle."""
+        """Clear polygon temporary items."""
         for item in self._temp_polygon_lines:
             try:
                 if item.scene():
@@ -327,7 +327,7 @@ class AnnotationView(QGraphicsView):
             self._temp_polygon_item = None
     
     # ─────────────────────────────────────────────────────────────────
-    # Zoom İşlemleri
+    # Zoom Operations
     # ─────────────────────────────────────────────────────────────────
     
     def zoom_in(self):
@@ -372,7 +372,7 @@ class AnnotationView(QGraphicsView):
             
         if event.button() == Qt.MouseButton.LeftButton:
             if self._scene.has_image:
-                # Magic Pixel modu - nokta tıklama ile AI
+                # Magic Pixel mode - click point for AI
                 if self._sam_mode == "pixel":
                     if self._current_tool in (self.TOOL_BBOX, self.TOOL_POLYGON):
                         scene_pos = self.mapToScene(event.pos())
@@ -383,13 +383,13 @@ class AnnotationView(QGraphicsView):
                         self.sam_click_requested.emit(x, y, mode)
                         return
                 
-                # Magic Box modu - bbox çizerek AI
+                # Magic Box mode - draw bbox for AI
                 if self._sam_mode == "box":
                     if self._current_tool in (self.TOOL_BBOX, self.TOOL_POLYGON):
                         self._start_bbox_for_sam(event)
                         return
                 
-                # Normal çizim (AI kapalı)
+                # Normal drawing (AI disabled)
                 if self._current_tool == self.TOOL_BBOX:
                     self._start_bbox_drawing(event)
                     return
@@ -397,7 +397,7 @@ class AnnotationView(QGraphicsView):
                     self._add_polygon_point(event)
                     return
         
-        # Sağ tık - polygon'u kapat
+        # Right click - close polygon
         if event.button() == Qt.MouseButton.RightButton:
             if self._current_tool == self.TOOL_POLYGON and len(self._polygon_points) >= 3:
                 self._finish_polygon()
@@ -406,29 +406,29 @@ class AnnotationView(QGraphicsView):
         super().mousePressEvent(event)
             
     def mouseMoveEvent(self, event: QMouseEvent):
-        # Pan işlemi
+        # Pan operation
         if self._is_panning:
             self._update_panning(event)
             return
         
         scene_pos = self.mapToScene(event.pos())
         
-        # Crosshair güncelle
+        # Update crosshair
         if self._current_tool in (self.TOOL_BBOX, self.TOOL_POLYGON) and self._scene.has_image:
             self._update_crosshair(scene_pos)
             
-        # BBox çizimi (normal veya Magic Box için)
+        # BBox drawing (normal or Magic Box)
         if self._is_drawing and self._temp_rect_item:
             if self._is_drawing_bbox_for_polygon:
                 self._update_bbox_for_sam(event)
             else:
                 self._update_bbox_drawing(event)
             
-        # Polygon preview çizgisi
+        # Polygon preview line
         if self._current_tool == self.TOOL_POLYGON and self._polygon_points:
             self._update_polygon_preview(scene_pos)
             
-        # Mouse pozisyonunu bildir
+        # Report mouse position
         if self._scene.has_image:
             x = max(0, min(int(scene_pos.x()), self._scene.image_size[0] - 1))
             y = max(0, min(int(scene_pos.y()), self._scene.image_size[1] - 1))
@@ -463,28 +463,28 @@ class AnnotationView(QGraphicsView):
         super().mouseReleaseEvent(event)
     
     def keyPressEvent(self, event: QKeyEvent):
-        """Klavye olayları."""
-        # Polygon çizim sırasında
+        """Key events."""
+        # During polygon drawing
         if self._current_tool == self.TOOL_POLYGON and self._polygon_points:
-            # Enter - polygon'u kapat
+            # Enter - close polygon
             if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                 if len(self._polygon_points) >= 3:
                     self._finish_polygon()
                 return
-            # Backspace - son noktayı sil
+            # Backspace - remove last point
             elif event.key() == Qt.Key.Key_Backspace:
                 self._remove_last_polygon_point()
                 return
-            # ESC - polygon çizimini iptal et
+            # ESC - cancel polygon drawing
             elif event.key() == Qt.Key.Key_Escape:
                 self.cancel_drawing()
                 return
         
-        # Seçili annotation item varken Delete/Backspace/ESC
+        # Delete/Backspace/ESC when annotation item is selected
         if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace, Qt.Key.Key_Escape):
             selected_items = self._scene.selectedItems()
             for item in selected_items:
-                # EditableRectItem veya EditablePolygonItem ise delete sinyali gönder
+                # If EditableRectItem or EditablePolygonItem, send delete signal
                 if hasattr(item, 'signals') and hasattr(item.signals, 'delete_requested'):
                     item.signals.delete_requested.emit(item.index)
                     event.accept()
@@ -493,7 +493,7 @@ class AnnotationView(QGraphicsView):
         super().keyPressEvent(event)
     
     # ─────────────────────────────────────────────────────────────────
-    # Pan İşlemleri
+    # Pan Operations
     # ─────────────────────────────────────────────────────────────────
     
     def _start_panning(self, event: QMouseEvent):
@@ -522,7 +522,7 @@ class AnnotationView(QGraphicsView):
             self.setCursor(Qt.CursorShape.ArrowCursor)
     
     # ─────────────────────────────────────────────────────────────────
-    # BBox Çizimi
+    # BBox Drawing
     # ─────────────────────────────────────────────────────────────────
     
     def _start_bbox_drawing(self, event: QMouseEvent):
@@ -535,7 +535,7 @@ class AnnotationView(QGraphicsView):
         
         pen = QPen(self._draw_color, 2)
         pen.setStyle(Qt.PenStyle.DashLine)
-        pen.setCosmetic(True)  # Zoom'dan bağımsız sabit çizgi kalınlığı
+        pen.setCosmetic(True)  # Fixed line width independent of zoom
         self._temp_rect_item.setPen(pen)
         
         fill = QColor(self._draw_color)
@@ -578,10 +578,10 @@ class AnnotationView(QGraphicsView):
             
         pen = QPen(self._draw_color, 2)
         pen.setStyle(Qt.PenStyle.SolidLine)
-        pen.setCosmetic(True)  # Zoom'dan bağımsız sabit çizgi kalınlığı
+        pen.setCosmetic(True)  # Fixed line width independent of zoom
         self._temp_rect_item.setPen(pen)
         
-        # Etiket listesine ekle
+        # Add to annotation list
         self._annotation_items.append(self._temp_rect_item)
         
         self.bbox_created.emit(rect.x(), rect.y(), rect.right(), rect.bottom())
@@ -589,20 +589,20 @@ class AnnotationView(QGraphicsView):
         self._temp_rect_item = None
     
     # ─────────────────────────────────────────────────────────────────
-    # Magic Box için BBox Çizimi (bbox → SAM → bbox veya polygon)
+    # BBox Drawing for Magic Box (bbox → SAM → bbox or polygon)
     # ─────────────────────────────────────────────────────────────────
     
     def _start_bbox_for_sam(self, event: QMouseEvent):
-        """Magic Box modunda bbox çizimini başlat."""
+        """Start bbox drawing in Magic Box mode."""
         self._is_drawing = True
-        self._is_drawing_bbox_for_polygon = True  # Aynı flag'i kullan
+        self._is_drawing_bbox_for_polygon = True  # Use same flag
         self._draw_start_pos = self.mapToScene(event.pos())
         
         from PySide6.QtWidgets import QGraphicsRectItem
         
         self._temp_rect_item = QGraphicsRectItem(QRectF(self._draw_start_pos, self._draw_start_pos))
         
-        # Mor renkli kesikli çizgi (Magic Box'ı ayırt etmek için)
+        # Purple dashed line (to distinguish Magic Box)
         pen = QPen(QColor(180, 100, 255), 2)
         pen.setStyle(Qt.PenStyle.DashLine)
         pen.setCosmetic(True)
@@ -615,7 +615,7 @@ class AnnotationView(QGraphicsView):
         self._scene.addItem(self._temp_rect_item)
     
     def _update_bbox_for_sam(self, event: QMouseEvent):
-        """Magic Box bbox çizimini güncelle."""
+        """Update Magic Box bbox drawing."""
         if not self._temp_rect_item:
             return
             
@@ -635,7 +635,7 @@ class AnnotationView(QGraphicsView):
         self._temp_rect_item.setRect(QRectF(x1, y1, x2 - x1, y2 - y1))
     
     def _finish_bbox_for_sam(self, event: QMouseEvent):
-        """Magic Box bbox çizimini tamamla ve SAM'a gönder."""
+        """Complete Magic Box bbox drawing and send to SAM."""
         self._is_drawing = False
         self._is_drawing_bbox_for_polygon = False
         
@@ -649,11 +649,11 @@ class AnnotationView(QGraphicsView):
             self._temp_rect_item = None
             return
         
-        # Geçici rect'i kaldır
+        # Remove temporary rect
         self._scene.removeItem(self._temp_rect_item)
         self._temp_rect_item = None
         
-        # SAM'a bbox ve hangi mod olduğunu gönder
+        # Send bbox and mode to SAM
         x1 = int(rect.x())
         y1 = int(rect.y())
         x2 = int(rect.right())
@@ -662,37 +662,37 @@ class AnnotationView(QGraphicsView):
         self.sam_box_requested.emit(x1, y1, x2, y2, mode)
     
     # ─────────────────────────────────────────────────────────────────
-    # Polygon Çizimi
+    # Polygon Drawing
     # ─────────────────────────────────────────────────────────────────
     
     def _add_polygon_point(self, event: QMouseEvent):
-        """Polygon'a yeni nokta ekle."""
+        """Add new point to polygon."""
         scene_pos = self.mapToScene(event.pos())
         
-        # Görsel sınırları içinde tut
+        # Keep within image bounds
         img_w, img_h = self._scene.image_size
         x = max(0, min(scene_pos.x(), img_w))
         y = max(0, min(scene_pos.y(), img_h))
         pos = QPointF(x, y)
         
-        # İlk noktaya yakın tıklandıysa polygon'u kapat
+        # Close polygon if clicked near first point
         if len(self._polygon_points) >= 3:
             first_point = self._polygon_points[0]
             distance = ((pos.x() - first_point.x()) ** 2 + (pos.y() - first_point.y()) ** 2) ** 0.5
-            if distance < 15:  # 15 piksel mesafe
+            if distance < 15:  # 15 pixels distance
                 self._finish_polygon()
                 return
         
         self._polygon_points.append(pos)
         
-        # Nokta göstergesi ekle (ilk nokta özel görünüm)
+        # Add point indicator (first point special appearance)
         is_first = len(self._polygon_points) == 1
         dot_size = 12 if is_first else 8
         dot = QGraphicsEllipseItem(x - dot_size/2, y - dot_size/2, dot_size, dot_size)
         
         if is_first:
-            # İlk nokta farklı renk (kapatma ipucu)
-            dot.setBrush(QBrush(QColor("#FFD700")))  # Altın sarısı
+            # First point different color (closure hint)
+            dot.setBrush(QBrush(QColor("#FFD700")))  # Gold
             first_pen = QPen(self._draw_color, 2)
             first_pen.setCosmetic(True)
             dot.setPen(first_pen)
@@ -706,7 +706,7 @@ class AnnotationView(QGraphicsView):
         self._scene.addItem(dot)
         self._temp_polygon_dots.append(dot)
         
-        # Çizgi ekle (en az 2 nokta varsa)
+        # Add line (if at least 2 points)
         if len(self._polygon_points) >= 2:
             p1 = self._polygon_points[-2]
             p2 = self._polygon_points[-1]
@@ -720,11 +720,11 @@ class AnnotationView(QGraphicsView):
             self._temp_polygon_lines.append(line)
     
     def _update_polygon_preview(self, scene_pos: QPointF):
-        """Polygon önizleme çizgisini güncelle (son nokta → mouse)."""
+        """Update polygon preview line (last point -> mouse)."""
         if not self._polygon_points:
             return
             
-        # Geçici preview çizgisi varsa kaldır
+        # Remove temporary preview line if exists
         if self._temp_polygon_item:
             try:
                 if self._temp_polygon_item.scene():
@@ -733,7 +733,7 @@ class AnnotationView(QGraphicsView):
                 pass
             self._temp_polygon_item = None
         
-        # Son noktadan mouse'a çizgi çiz
+        # Draw line from last point to mouse
         last_point = self._polygon_points[-1]
         line = QGraphicsLineItem(QLineF(last_point, scene_pos))
         pen = QPen(self._draw_color, 2)
@@ -745,13 +745,13 @@ class AnnotationView(QGraphicsView):
         self._temp_polygon_item = line
     
     def _remove_last_polygon_point(self):
-        """Son polygon noktasını sil."""
+        """Delete last polygon point."""
         if not self._polygon_points:
             return
             
         self._polygon_points.pop()
         
-        # Son nokta göstergesini sil
+        # Delete last point indicator
         if self._temp_polygon_dots:
             dot = self._temp_polygon_dots.pop()
             try:
@@ -760,7 +760,7 @@ class AnnotationView(QGraphicsView):
             except RuntimeError:
                 pass
         
-        # Son çizgiyi sil
+        # Delete last line
         if self._temp_polygon_lines:
             line = self._temp_polygon_lines.pop()
             try:
@@ -770,12 +770,12 @@ class AnnotationView(QGraphicsView):
                 pass
     
     def _finish_polygon(self):
-        """Polygon çizimini tamamla."""
+        """Complete polygon drawing."""
         if len(self._polygon_points) < 3:
             self.cancel_drawing()
             return
         
-        # Kalıcı polygon oluştur
+        # Create persistent polygon
         polygon = QPolygonF(self._polygon_points)
         polygon_item = QGraphicsPolygonItem(polygon)
         
@@ -792,22 +792,22 @@ class AnnotationView(QGraphicsView):
         self._scene.addItem(polygon_item)
         self._annotation_items.append(polygon_item)
         
-        # Piksel koordinatlarını listeye çevir
+        # Convert points to list
         points = [(p.x(), p.y()) for p in self._polygon_points]
         
-        # Geçici öğeleri temizle
+        # Clear temporary items
         self._clear_polygon_temp_items()
         self._polygon_points.clear()
         
-        # Sinyal gönder
+        # Send signal
         self.polygon_created.emit(points)
     
     # ─────────────────────────────────────────────────────────────────
-    # Annotation Render (Etiket Kalıcılığı)
+    # Annotation Render (Label Persistence)
     # ─────────────────────────────────────────────────────────────────
     
     def clear_annotations(self):
-        """Çizilmiş etiketleri temizle."""
+        """Clear drawn annotations."""
         for item in self._annotation_items:
             try:
                 if item.scene() is not None:
@@ -818,12 +818,12 @@ class AnnotationView(QGraphicsView):
     
     def draw_annotations(self, bboxes: list, polygons: list, class_manager):
         """
-        Kayıtlı etiketleri canvas'a çiz.
+        Draw saved annotations on canvas.
         
         Args:
-            bboxes: BoundingBox listesi
-            polygons: Polygon listesi
-            class_manager: Renk bilgisi için ClassManager
+            bboxes: List of BoundingBox
+            polygons: List of Polygon
+            class_manager: ClassManager for color info
         """
         if not self._scene.has_image:
             return
@@ -832,12 +832,12 @@ class AnnotationView(QGraphicsView):
         if img_w == 0 or img_h == 0:
             return
         
-        # Önceki etiketleri temizle
+        # Clear previous annotations
         self.clear_annotations()
         
-        # BBox'ları çiz (düzenlenebilir)
+        # Draw BBoxes (editable)
         for idx, bbox in enumerate(bboxes):
-            # Normalize koordinatları piksel koordinatlarına çevir
+            # Convert normalized coordinates to pixel coordinates
             x_center = bbox.x_center * img_w
             y_center = bbox.y_center * img_h
             width = bbox.width * img_w
@@ -846,11 +846,11 @@ class AnnotationView(QGraphicsView):
             x1 = x_center - width / 2
             y1 = y_center - height / 2
             
-            # Sınıf rengi al
+            # Get class color
             label_class = class_manager.get_by_id(bbox.class_id)
             color = QColor(label_class.color) if label_class else QColor("#888888")
             
-            # Düzenlenebilir rect oluştur
+            # Create editable rect
             rect_item = EditableRectItem(
                 QRectF(x1, y1, width, height),
                 index=idx,
@@ -859,7 +859,7 @@ class AnnotationView(QGraphicsView):
             )
             rect_item.setZValue(10)
             
-            # Sinyalleri bağla
+            # Connect signals
             rect_item.signals.rect_changed.connect(self.bbox_moved.emit)
             rect_item.signals.class_change_requested.connect(self.bbox_class_change_requested.emit)
             rect_item.signals.delete_requested.connect(self.bbox_delete_requested.emit)
@@ -868,16 +868,16 @@ class AnnotationView(QGraphicsView):
             self._scene.addItem(rect_item)
             self._annotation_items.append(rect_item)
         
-        # Polygon'ları çiz (düzenlenebilir)
+        # Draw Polygons (editable)
         for idx, polygon in enumerate(polygons):
-            # Normalize koordinatları piksel koordinatlarına çevir
+            # Convert normalized coordinates to pixel coordinates
             points = [QPointF(x * img_w, y * img_h) for x, y in polygon.points]
             
-            # Sınıf rengi al
+            # Get class color
             label_class = class_manager.get_by_id(polygon.class_id)
             color = QColor(label_class.color) if label_class else QColor("#888888")
             
-            # Düzenlenebilir polygon oluştur
+            # Create editable polygon
             polygon_qf = QPolygonF(points)
             polygon_item = EditablePolygonItem(
                 polygon_qf,
@@ -887,7 +887,7 @@ class AnnotationView(QGraphicsView):
             )
             polygon_item.setZValue(10)
             
-            # Sinyalleri bağla
+            # Connect signals
             polygon_item.signals.polygon_changed.connect(self.polygon_moved.emit)
             polygon_item.signals.class_change_requested.connect(self.polygon_class_change_requested.emit)
             polygon_item.signals.delete_requested.connect(self.polygon_delete_requested.emit)

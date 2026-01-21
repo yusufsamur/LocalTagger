@@ -1,6 +1,6 @@
 """
-Core modülü - İş mantığı ve veri modelleri
-==========================================
+Core module - Business logic and data models
+============================================
 """
 
 from .project import Project

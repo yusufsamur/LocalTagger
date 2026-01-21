@@ -1,7 +1,7 @@
 """
-Uygulama Konfigürasyonu
+Application Configuration
 =======================
-Ayarların saklanması ve yönetimi.
+Configuration storage and management.
 """
 
 from pathlib import Path
@@ -12,7 +12,7 @@ import json
 
 @dataclass
 class Config:
-    """Uygulama ayarları."""
+    """Application settings."""
     
     last_folder: Optional[str] = None
     dark_mode: bool = True
@@ -20,7 +20,7 @@ class Config:
     window_height: int = 800
     
     def save(self, path: Path):
-        """Ayarları dosyaya kaydet."""
+        """Save settings to file."""
         path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "last_folder": self.last_folder,
@@ -33,7 +33,7 @@ class Config:
             
     @classmethod
     def load(cls, path: Path) -> "Config":
-        """Ayarları dosyadan yükle."""
+        """Load settings from file."""
         config = cls()
         if path.exists():
             try:

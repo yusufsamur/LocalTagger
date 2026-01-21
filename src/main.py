@@ -1,5 +1,5 @@
 """
-LocalFlow - Main Entry Point
+LocalTagger - Main Entry Point
 =============================
 Run this file to start the application:
     python src/main.py
@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 
 from core.language_manager import LanguageManager
-from app import LocalFlowApp
+from app import LocalTaggerApp
 
 
 # Global language manager instance
@@ -27,16 +27,16 @@ def main():
     )
     
     app = QApplication(sys.argv)
-    app.setApplicationName("LocalFlow")
+    app.setApplicationName("LocalTagger")
     app.setApplicationVersion("2.0.0")
-    app.setOrganizationName("LocalFlow")
+    app.setOrganizationName("LocalTagger")
     
     # Initialize language manager and load saved preference
     language_manager = LanguageManager(app)
     language_manager.load_saved_language()
     
     # Create and show main window
-    window = LocalFlowApp()
+    window = LocalTaggerApp()
     window.set_language_manager(language_manager)
     window.show()
     

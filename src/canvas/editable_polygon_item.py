@@ -1,7 +1,7 @@
 """
-Düzenlenebilir Polygon Item
-===========================
-Sürüklenebilir köşe noktaları ile düzenlenebilir polygon.
+Editable Polygon Item
+=====================
+Editable polygon with draggable vertices.
 """
 
 from PySide6.QtWidgets import (
@@ -13,24 +13,24 @@ from PySide6.QtGui import QPen, QColor, QBrush, QPainter, QPolygonF
 
 
 class EditablePolygonSignals(QObject):
-    """Sinyaller için yardımcı sınıf."""
+    """Helper class for signals."""
     polygon_changed = Signal(int, list)  # (index, new_points)
     class_change_requested = Signal(int, QPointF)  # (index, position)
     delete_requested = Signal(int)  # index
     selected_changed = Signal(int, bool)  # (index, is_selected)
-    clicked = Signal(int)  # index - tıklandığında otomatik select moduna geçmek için
+    clicked = Signal(int)  # index - to switch to auto select mode when clicked
 
 
 class EditablePolygonItem(QGraphicsPolygonItem):
     """
-    Düzenlenebilir polygon item.
-    - Köşe noktaları sürüklenebilir
-    - Sağ tık menüsü ile sınıf değiştirme/silme
+    Editable polygon item.
+    - Vertices are draggable
+    - Right-click menu for class changing/deletion
     """
     
-    BASE_VERTEX_SIZE = 8  # Temel vertex boyutu  
-    MIN_VERTEX_SIZE = 4   # Minimum vertex boyutu
-    MAX_VERTEX_SIZE = 12  # Maksimum vertex boyutu
+    BASE_VERTEX_SIZE = 8  # Base vertex size
+    MIN_VERTEX_SIZE = 4   # Minimum vertex size
+    MAX_VERTEX_SIZE = 12  # Maximum vertex size
     
     def __init__(self, polygon: QPolygonF, index: int, class_id: int, color: QColor, parent=None):
         super().__init__(polygon, parent)
@@ -38,10 +38,10 @@ class EditablePolygonItem(QGraphicsPolygonItem):
         self.class_id = class_id
         self.color = color
         
-        # Sinyaller
+        # Signals
         self.signals = EditablePolygonSignals()
         
-        # Seçilebilir ve taşınabilir (Q modu ile)
+        # Selectable and movable (with Q mode)
         self.setFlags(
             QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
             QGraphicsItem.GraphicsItemFlag.ItemIsMovable |
@@ -50,20 +50,20 @@ class EditablePolygonItem(QGraphicsPolygonItem):
         )
         self.setAcceptHoverEvents(True)
         
-        # Stil
+        # Style
         self._update_style()
         
-        # Vertex drag durumu
+        # Vertex drag state
         self._dragging_vertex = -1
         self._drag_start_pos = None
         
     def _update_style(self, selected: bool = False):
-        """Görünümü güncelle."""
+        """Update appearance."""
         if selected:
             pen = QPen(self.color, 3)
         else:
             pen = QPen(self.color, 2)
-        pen.setCosmetic(True)  # Zoom'dan bağımsız sabit çizgi kalınlığı
+        pen.setCosmetic(True)  # Fixed line width independent of zoom
         self.setPen(pen)
         
         fill = QColor(self.color)
@@ -71,16 +71,16 @@ class EditablePolygonItem(QGraphicsPolygonItem):
         self.setBrush(QBrush(fill))
     
     def _get_dynamic_vertex_size(self, scale: float = 1.0) -> float:
-        """Zoom seviyesine göre dinamik vertex boyutu."""
+        """Dynamic vertex size based on zoom level."""
         if scale <= 0:
             scale = 1.0
         vs = self.BASE_VERTEX_SIZE / scale
         return max(self.MIN_VERTEX_SIZE, min(vs, self.MAX_VERTEX_SIZE))
     
     def _get_vertex_at(self, pos: QPointF) -> int:
-        """Pozisyondaki vertex indeksini döndür (-1 = yok)."""
+        """Return index of vertex at position (-1 = none)."""
         polygon = self.polygon()
-        # View'dan scale al
+        # Get scale from View
         scale = 1.0
         if self.scene() and self.scene().views():
             view = self.scene().views()[0]
@@ -95,12 +95,12 @@ class EditablePolygonItem(QGraphicsPolygonItem):
         return -1
     
     def paint(self, painter: QPainter, option, widget=None):
-        """Çizim - vertex'leri de çiz."""
+        """Draw - also draw vertices."""
         super().paint(painter, option, widget)
         
         if self.isSelected():
             polygon = self.polygon()
-            # Zoom seviyesine göre dinamik vertex boyutu
+            # Dynamic vertex size based on zoom level
             scale = painter.transform().m11()
             vs = self._get_dynamic_vertex_size(scale)
             
@@ -108,7 +108,7 @@ class EditablePolygonItem(QGraphicsPolygonItem):
                 pt = polygon.at(i)
                 rect = QRectF(pt.x() - vs/2, pt.y() - vs/2, vs, vs)
                 
-                # İlk nokta farklı renk
+                # First point different color
                 if i == 0:
                     painter.setBrush(QBrush(QColor("#FFD700")))
                 else:
@@ -120,7 +120,7 @@ class EditablePolygonItem(QGraphicsPolygonItem):
                 painter.drawEllipse(rect)
     
     def hoverMoveEvent(self, event):
-        """Hover'da cursor'u güncelle."""
+        """Update cursor on hover."""
         if self.isSelected():
             vertex = self._get_vertex_at(event.pos())
             if vertex >= 0:
@@ -132,17 +132,17 @@ class EditablePolygonItem(QGraphicsPolygonItem):
         super().hoverMoveEvent(event)
     
     def hoverLeaveEvent(self, event):
-        """Hover çıkışı."""
+        """Hover leave."""
         self.unsetCursor()
         super().hoverLeaveEvent(event)
     
     def mousePressEvent(self, event):
-        """Mouse basıldığında."""
+        """On mouse press."""
         if event.button() == Qt.MouseButton.LeftButton:
             if self.isSelected():
                 vertex = self._get_vertex_at(event.pos())
                 if vertex >= 0:
-                    # Vertex drag başlat
+                    # Start vertex drag
                     self._dragging_vertex = vertex
                     self._drag_start_pos = event.pos()
                     event.accept()
@@ -151,9 +151,9 @@ class EditablePolygonItem(QGraphicsPolygonItem):
         super().mousePressEvent(event)
     
     def mouseMoveEvent(self, event):
-        """Mouse hareket."""
+        """Mouse move."""
         if self._dragging_vertex >= 0:
-            # Vertex'i sürükle - yeni polygon oluştur
+            # Drag vertex - create new polygon
             polygon = self.polygon()
             new_points = []
             for i in range(polygon.count()):
@@ -168,24 +168,24 @@ class EditablePolygonItem(QGraphicsPolygonItem):
         super().mouseMoveEvent(event)
     
     def mouseReleaseEvent(self, event):
-        """Mouse bırakıldığında."""
+        """On mouse release."""
         if self._dragging_vertex >= 0:
-            # Vertex drag tamamlandı
+            # Vertex drag completed
             self._dragging_vertex = -1
             self._emit_polygon_changed()
             event.accept()
             return
         elif self._drag_start_pos is not None:
-            # Polygon taşıma tamamlandı
+            # Polygon move completed
             if event.pos() != self._drag_start_pos:
                 self._emit_polygon_changed()
             self._drag_start_pos = None
         super().mouseReleaseEvent(event)
     
     def _emit_polygon_changed(self):
-        """Polygon değişikliğini bildir - sahne koordinatlarında."""
+        """Emit polygon change - in scene coordinates."""
         polygon = self.polygon()
-        # Yerel koordinatları sahne koordinatlarına dönüştür
+        # Convert local coordinates to scene coordinates
         points = []
         for i in range(polygon.count()):
             local_pt = polygon.at(i)
@@ -194,17 +194,17 @@ class EditablePolygonItem(QGraphicsPolygonItem):
         self.signals.polygon_changed.emit(self.index, points)
     
     def itemChange(self, change, value):
-        """Item değişikliği."""
+        """Item change."""
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
             self._update_style(value)
             self.signals.selected_changed.emit(self.index, value)
         elif change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            # Drag tamamlandı - konum değişikliğini doğrudan bildir (race condition riski yok)
+            # Drag completed - report position change immediately (no race condition risk)
             self._emit_polygon_changed()
         return super().itemChange(change, value)
     
     def keyPressEvent(self, event):
-        """Klavye olayları - silme kısayolları."""
+        """Key events - deletion shortcuts."""
         if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace, Qt.Key.Key_Escape):
             self.signals.delete_requested.emit(self.index)
             event.accept()
@@ -212,7 +212,7 @@ class EditablePolygonItem(QGraphicsPolygonItem):
         super().keyPressEvent(event)
     
     def mouseDoubleClickEvent(self, event):
-        """Çift tıklama - hiçbir şey yapma."""
+        """Double click - do nothing."""
         super().mouseDoubleClickEvent(event)
     
     def contextMenuEvent(self, event: QGraphicsSceneContextMenuEvent):
@@ -231,7 +231,7 @@ class EditablePolygonItem(QGraphicsPolygonItem):
             self.signals.class_change_requested.emit(self.index, event.scenePos())
     
     def update_class(self, class_id: int, color: QColor):
-        """Sınıfı güncelle."""
+        """Update class."""
         self.class_id = class_id
         self.color = color
         self._update_style(self.isSelected())

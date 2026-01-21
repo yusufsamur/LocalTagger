@@ -1,7 +1,7 @@
 """
-Export Format Dialogu
-=====================
-Çeşitli formatlarda export seçimi için dialog.
+Export Format Dialog
+====================
+Dialog for selecting export format.
 """
 
 from pathlib import Path
@@ -21,7 +21,7 @@ from core.exporter import (
 
 
 class ExportWorker(QThread):
-    """Export işlemini arka planda çalıştırır."""
+    """Runs export process in background."""
     
     progress = Signal(int, int)  # current, total
     finished = Signal(int)  # exported count
@@ -52,14 +52,14 @@ class ExportWorker(QThread):
 
 class ExportFormatDialog(QDialog):
     """
-    Export format seçimi dialog'u.
+    Export format selection dialog.
     
-    Özellikler:
-    - Format seçimi (YOLO, COCO, Custom)
-    - YOLO versiyon seçimi
-    - Custom format için örnek dosya yükleme
-    - Çıktı klasörü seçimi
-    - İlerleme çubuğu
+    Features:
+    - Format selection (YOLO, COCO, Custom)
+    - YOLO version selection
+    - Template file loading for Custom format
+    - Output folder selection
+    - Progress bar
     """
     
     def __init__(
@@ -91,18 +91,18 @@ class ExportFormatDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         
-        # Başlık
+        # Title
         title = QLabel("📦 Export Format Seçimi")
         title.setFont(QFont("", 14, QFont.Weight.Bold))
         layout.addWidget(title)
         
-        # Format seçimi
+        # Format selection
         format_group = QGroupBox("Format")
         format_layout = QVBoxLayout(format_group)
         
         self.format_btn_group = QButtonGroup(self)
         
-        # YOLO seçeneği
+        # YOLO option
         yolo_layout = QHBoxLayout()
         self.yolo_radio = QRadioButton("YOLO")
         self.yolo_radio.setChecked(True)
@@ -139,11 +139,11 @@ class ExportFormatDialog(QDialog):
         
         layout.addWidget(format_group)
         
-        # Custom format ayarları
+        # Custom format settings
         self.custom_group = QGroupBox("Custom Format Ayarları")
         custom_layout = QVBoxLayout(self.custom_group)
         
-        # Format tipi
+        # Format type
         type_layout = QHBoxLayout()
         type_layout.addWidget(QLabel("Format tipi:"))
         
@@ -173,7 +173,7 @@ class ExportFormatDialog(QDialog):
         
         custom_layout.addWidget(self.txt_format_group)
         
-        # JSON şablon yükleme
+        # JSON template loading
         self.json_format_group = QGroupBox("JSON Şablonu")
         json_format_layout = QVBoxLayout(self.json_format_group)
         
@@ -197,7 +197,7 @@ class ExportFormatDialog(QDialog):
         
         layout.addWidget(self.custom_group)
         
-        # Çıktı klasörü
+        # Output folder
         output_group = QGroupBox("Çıktı Klasörü")
         output_layout = QHBoxLayout(output_group)
         
@@ -212,12 +212,12 @@ class ExportFormatDialog(QDialog):
         
         layout.addWidget(output_group)
         
-        # Bilgi
+        # Info
         info_label = QLabel(f"📊 {len(self._image_files)} görsel export edilecek")
         info_label.setStyleSheet("color: #2196F3;")
         layout.addWidget(info_label)
         
-        # İlerleme çubuğu
+        # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
@@ -228,7 +228,7 @@ class ExportFormatDialog(QDialog):
         
         layout.addStretch()
         
-        # Butonlar
+        # Buttons
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         
@@ -253,7 +253,7 @@ class ExportFormatDialog(QDialog):
         self.cancel_btn.clicked.connect(self.reject)
     
     def _update_ui_state(self):
-        """UI durumunu güncelle."""
+        """Update UI state."""
         is_custom = self.custom_radio.isChecked()
         self.custom_group.setVisible(is_custom)
         
@@ -265,7 +265,7 @@ class ExportFormatDialog(QDialog):
             self.txt_format_group.setVisible(is_txt)
             self.json_format_group.setVisible(not is_txt)
         
-        # Dialog boyutunu ayarla
+        # Adjust dialog size
         self.adjustSize()
     
     def _on_format_changed(self, btn):
@@ -275,7 +275,7 @@ class ExportFormatDialog(QDialog):
         self._update_ui_state()
     
     def _browse_output(self):
-        """Çıktı klasörü seç."""
+        """Select output folder."""
         folder = QFileDialog.getExistingDirectory(
             self, "Çıktı Klasörü Seç",
             str(self._default_output_dir) if self._default_output_dir else ""
@@ -284,7 +284,7 @@ class ExportFormatDialog(QDialog):
             self.output_path_input.setText(folder)
     
     def _load_json_template(self):
-        """JSON şablon dosyası yükle."""
+        """Load JSON template file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "JSON Şablon Seç", "",
             "JSON Dosyaları (*.json)"
@@ -300,7 +300,7 @@ class ExportFormatDialog(QDialog):
                 QMessageBox.warning(self, "Hata", f"JSON dosyası okunamadı:\n{e}")
     
     def _start_export(self):
-        """Export işlemini başlat."""
+        """Start export process."""
         output_path = self.output_path_input.text().strip()
         if not output_path:
             QMessageBox.warning(self, "Uyarı", "Lütfen çıktı klasörünü seçin.")
@@ -308,19 +308,19 @@ class ExportFormatDialog(QDialog):
         
         output_dir = Path(output_path)
         
-        # Exporter oluştur
+        # Create exporter
         exporter = self._create_exporter()
         if exporter is None:
             return
         
-        # Annotations dict oluştur
+        # Create annotations dict
         annotations_dict = {}
         for image_path in self._image_files:
             key = str(image_path)
             if key in self._annotation_manager._annotations:
                 annotations_dict[key] = self._annotation_manager._annotations[key]
         
-        # UI'ı hazırla
+        # Prepare UI
         self.progress_bar.setVisible(True)
         self.progress_bar.setMaximum(len(self._image_files))
         self.progress_bar.setValue(0)
@@ -328,7 +328,7 @@ class ExportFormatDialog(QDialog):
         self.status_label.setText("Export başlatılıyor...")
         self.export_btn.setEnabled(False)
         
-        # Worker oluştur ve başlat
+        # Create and start worker
         self._worker = ExportWorker(
             exporter, annotations_dict, output_dir, self._image_files
         )
@@ -338,7 +338,7 @@ class ExportFormatDialog(QDialog):
         self._worker.start()
     
     def _create_exporter(self):
-        """Seçilen formata göre exporter oluştur."""
+        """Create exporter based on selected format."""
         if self.yolo_radio.isChecked():
             version = self.yolo_version_combo.currentText().replace("YOLO", "")
             return YOLOExporter(self._class_manager, version)
@@ -362,12 +362,12 @@ class ExportFormatDialog(QDialog):
         return None
     
     def _on_progress(self, current, total):
-        """İlerleme güncelle."""
+        """Update progress."""
         self.progress_bar.setValue(current)
         self.status_label.setText(f"Export ediliyor: {current}/{total}")
     
     def _on_export_finished(self, count):
-        """Export tamamlandığında."""
+        """Export finished."""
         self.progress_bar.setValue(self.progress_bar.maximum())
         
         output_path = self.output_path_input.text()
@@ -381,7 +381,7 @@ class ExportFormatDialog(QDialog):
         self.accept()
     
     def _on_export_error(self, error_msg):
-        """Export hatası."""
+        """Export error."""
         self.progress_bar.setVisible(False)
         self.status_label.setVisible(False)
         self.export_btn.setEnabled(True)
@@ -389,7 +389,7 @@ class ExportFormatDialog(QDialog):
         QMessageBox.critical(self, "Hata", f"Export sırasında hata oluştu:\n{error_msg}")
     
     def _get_format_name(self) -> str:
-        """Seçilen format adını döndür."""
+        """Returns name of selected format."""
         if self.yolo_radio.isChecked():
             return self.yolo_version_combo.currentText()
         elif self.coco_radio.isChecked():
@@ -399,7 +399,7 @@ class ExportFormatDialog(QDialog):
         return "Unknown"
     
     def closeEvent(self, event):
-        """Dialog kapatılırken."""
+        """Dialog closing."""
         if self._worker and self._worker.isRunning():
             self._worker.wait()
         super().closeEvent(event)

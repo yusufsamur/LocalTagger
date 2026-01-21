@@ -1,7 +1,7 @@
 """
-Etiket Özeti Widget
-===================
-Mevcut görseldeki etiketlerin sınıf bazlı özetini gösterir.
+Annotation Summary Widget
+=========================
+Displays class-based summary of annotations in the current image.
 """
 
 from collections import defaultdict
@@ -18,14 +18,14 @@ from core.class_manager import ClassManager
 
 class AnnotationListWidget(QWidget):
     """
-    Mevcut görseldeki etiketlerin sınıf bazlı özetini gösterir.
-    Format: sınıf_adı: sayı (örn: araba: 3, insan: 0)
+    Displays class-based summary of annotations in the current image.
+    Format: class_name: count (e.g. car: 3, person: 0)
     """
     
-    # Sinyaller
+    # Signals
     annotation_selected = Signal(str, int)  # (type: "bbox" | "polygon", index)
     annotation_deleted = Signal(str, int)   # (type, index)
-    clear_all_requested = Signal()          # Tümünü sil isteği
+    clear_all_requested = Signal()          # Request to delete all
     
     def __init__(self, annotation_manager: AnnotationManager, 
                  class_manager: ClassManager, parent=None):
@@ -57,7 +57,7 @@ class AnnotationListWidget(QWidget):
         
         layout.addLayout(header)
         
-        # Sınıf bazlı özet listesi
+        # Class based summary list
         self.list_widget = QListWidget()
         self.list_widget.setAlternatingRowColors(True)
         self.list_widget.setSelectionMode(QListWidget.SelectionMode.NoSelection)
@@ -78,12 +78,12 @@ class AnnotationListWidget(QWidget):
         self.clear_btn.clicked.connect(self._on_clear_clicked)
         
     def set_current_image(self, image_path: str):
-        """Gösterilen görseli ayarla."""
+        """Set displayed image."""
         self._current_image = image_path
         self.refresh()
         
     def refresh(self):
-        """Listeyi yenile - sınıf bazlı özet göster."""
+        """Refresh list - show class based summary."""
         self.list_widget.clear()
         
         if not self._current_image:
@@ -92,7 +92,7 @@ class AnnotationListWidget(QWidget):
             
         annotations = self._annotation_manager.get_annotations(self._current_image)
         
-        # Sınıf bazlı sayım yap
+        # Count by class
         class_counts = defaultdict(int)
         
         for bbox in annotations.bboxes:
@@ -101,7 +101,7 @@ class AnnotationListWidget(QWidget):
         for polygon in annotations.polygons:
             class_counts[polygon.class_id] += 1
         
-        # Tüm sınıfları listele (etiket olmayanları da 0 olarak göster)
+        # List all classes (show 0 even if no label)
         for label_class in self._class_manager.classes:
             count = class_counts.get(label_class.id, 0)
             
@@ -109,7 +109,7 @@ class AnnotationListWidget(QWidget):
             item.setIcon(self._create_color_icon(label_class.color))
             item.setText(f"{label_class.name}: {count}")
             
-            # Eğer etiket varsa kalın font
+            # Bold font if has annotations
             if count > 0:
                 font = item.font()
                 font.setBold(True)
@@ -119,7 +119,7 @@ class AnnotationListWidget(QWidget):
                 
             self.list_widget.addItem(item)
         
-        # Bilgi güncelle
+        # Update info
         total = len(annotations.bboxes) + len(annotations.polygons)
         if total == 0:
             self.info_label.setText(self.tr("No annotations - Start drawing"))
@@ -134,7 +134,7 @@ class AnnotationListWidget(QWidget):
             self.info_label.setText(self.tr("Total: {} ({})").format(total, ', '.join(parts)))
             
     def _create_color_icon(self, color_hex: str) -> QIcon:
-        """Renk ikonu oluştur."""
+        """Create color icon."""
         pixmap = QPixmap(16, 16)
         pixmap.fill(Qt.GlobalColor.transparent)
         
@@ -148,6 +148,6 @@ class AnnotationListWidget(QWidget):
         return QIcon(pixmap)
                 
     def _on_clear_clicked(self):
-        """Tüm etiketleri temizle sinyali gönder."""
+        """Send clear all signal."""
         if self._current_image:
             self.clear_all_requested.emit()

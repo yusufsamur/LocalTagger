@@ -1,7 +1,7 @@
 """
 Graphics Scene
 ==============
-Etiketleme tuvalinin ana sahne sınıfı.
+Main scene class for the annotation canvas.
 """
 
 from pathlib import Path
@@ -13,32 +13,32 @@ from PySide6.QtCore import Qt, Signal
 
 class AnnotationScene(QGraphicsScene):
     """
-    Etiketleme işlemlerinin yapıldığı ana sahne.
-    Görsel ve etiket öğelerini barındırır.
+    Main scene where annotation operations take place.
+    Hosts image and annotation items.
     """
     
-    # Sinyaller
+    # Signals
     image_loaded = Signal(int, int)  # (width, height)
     
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        # Arka plan rengi
+        # Background color
         self.setBackgroundBrush(Qt.GlobalColor.darkGray)
         
-        # Görsel öğesi
+        # Image item
         self._image_item: Optional[QGraphicsPixmapItem] = None
         self._current_pixmap: Optional[QPixmap] = None
         
     def load_image(self, image_path: str | Path) -> bool:
         """
-        Sahneye bir görsel yükler.
+        Loads an image into the scene.
         
         Args:
-            image_path: Görsel dosyasının yolu
+            image_path: Path to image file
             
         Returns:
-            Başarılı ise True
+            True if successful
         """
         pixmap = QPixmap(str(image_path))
         if pixmap.isNull():
@@ -48,32 +48,32 @@ class AnnotationScene(QGraphicsScene):
     
     def set_image(self, pixmap: QPixmap) -> bool:
         """
-        Sahneye bir QPixmap ayarlar.
+        Sets a QPixmap to the scene.
         
         Args:
-            pixmap: Gösterilecek görsel
+            pixmap: Image to display
             
         Returns:
-            Başarılı ise True
+            True if successful
         """
-        # Tüm önceki öğeleri temizle (görsel + etiketler)
+        # Clear all previous items (image + annotations)
         self.clear()
             
         self._current_pixmap = pixmap
         self._image_item = QGraphicsPixmapItem(pixmap)
-        self._image_item.setZValue(-1)  # En arkada olsun
+        self._image_item.setZValue(-1)  # Send to back
         self.addItem(self._image_item)
         
-        # Sahne sınırlarını güncelle
+        # Update scene bounds
         self.setSceneRect(self._image_item.boundingRect())
         
-        # Sinyal gönder
+        # Emit signal
         self.image_loaded.emit(pixmap.width(), pixmap.height())
         
         return True
     
     def clear_image(self):
-        """Mevcut görseli temizler."""
+        """Clears the current image."""
         if self._image_item is not None:
             self.removeItem(self._image_item)
             self._image_item = None
@@ -81,12 +81,12 @@ class AnnotationScene(QGraphicsScene):
             
     @property
     def image_size(self) -> tuple[int, int]:
-        """Mevcut görsel boyutunu döndürür."""
+        """Returns current image size."""
         if self._current_pixmap is None:
             return (0, 0)
         return (self._current_pixmap.width(), self._current_pixmap.height())
     
     @property
     def has_image(self) -> bool:
-        """Yüklü bir görsel var mı?"""
+        """Is there an image loaded?"""
         return self._current_pixmap is not None

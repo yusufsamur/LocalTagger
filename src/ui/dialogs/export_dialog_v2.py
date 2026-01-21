@@ -1,7 +1,7 @@
 """
 Export Wizard v1.5
 ==================
-Adım adım export wizard - Dataset Split → Augmentation → Format
+Step-by-step export wizard - Dataset Split → Augmentation → Format
 """
 
 from pathlib import Path
@@ -29,7 +29,7 @@ from core.dataset_splitter import DatasetSplitter, SplitConfig
 
 
 class RangeSlider(QWidget):
-    """İki noktalı range slider - Train/Val/Test bölme için."""
+    """Two-handle range slider - For Train/Val/Test split."""
     
     valuesChanged = Signal(int, int, int)  # train, val, test
     
@@ -40,8 +40,8 @@ class RangeSlider(QWidget):
         
         self._min = 0
         self._max = 100
-        self._handle1 = 70  # Train/Val sınırı
-        self._handle2 = 90  # Val/Test sınırı
+        self._handle1 = 70  # Train/Val border
+        self._handle2 = 90  # Val/Test border
         
         self._dragging = None
         self._handle_width = 12
@@ -57,16 +57,16 @@ class RangeSlider(QWidget):
         bar_height = 20
         bar_y = (h - bar_height) // 2
         
-        # Train bölgesi (yeşil)
+        # Train region (green)
         x1 = self._handle_width // 2
         x2 = int(self._handle1 / 100 * w) + self._handle_width // 2
         painter.fillRect(QRect(x1, bar_y, x2 - x1, bar_height), QColor("#4CAF50"))
         
-        # Val bölgesi (mavi)
+        # Val region (blue)
         x3 = int(self._handle2 / 100 * w) + self._handle_width // 2
         painter.fillRect(QRect(x2, bar_y, x3 - x2, bar_height), QColor("#2196F3"))
         
-        # Test bölgesi (turuncu)
+        # Test region (orange)
         x4 = w + self._handle_width // 2
         painter.fillRect(QRect(x3, bar_y, x4 - x3, bar_height), QColor("#FF9800"))
         
@@ -80,7 +80,7 @@ class RangeSlider(QWidget):
         painter.drawEllipse(x3 - self._handle_width//2, bar_y - 5,
                            self._handle_width, bar_height + 10)
         
-        # Etiketler
+        # Labels
         painter.setPen(QColor("white"))
         font = painter.font()
         font.setPointSize(9)
@@ -130,10 +130,10 @@ class RangeSlider(QWidget):
         value = max(0, min(100, value))  # 0-100 arası
         
         if self._dragging == 1:
-            # Handle1: Train sonu, min 0, max handle2
+            # Handle1: Train end, min 0, max handle2
             self._handle1 = min(value, self._handle2)
         elif self._dragging == 2:
-            # Handle2: Val sonu, min handle1, max 100
+            # Handle2: Val end, min handle1, max 100
             self._handle2 = max(value, self._handle1)
         
         self.update()
@@ -142,20 +142,20 @@ class RangeSlider(QWidget):
                                  100 - self._handle2)
     
     def values(self):
-        """(train%, val%, test%) döndür."""
+        """Returns (train%, val%, test%)."""
         return (self._handle1, 
                 self._handle2 - self._handle1, 
                 100 - self._handle2)
     
     def setValues(self, train, val, test=None):
-        """Değerleri ayarla."""
+        """Set values."""
         self._handle1 = train
         self._handle2 = train + val
         self.update()
 
 
 class ExportWorkerV2(QThread):
-    """Export işlemini arka planda çalıştırır."""
+    """Runs export process in background."""
     
     progress = Signal(int, int)
     finished = Signal(int)
@@ -195,11 +195,11 @@ class ExportWorkerV2(QThread):
             self._exported_count = 0
             self._lock = __import__('threading').Lock()
             
-            # COCO için annotation collector
+            # Annotation collector for COCO
             if self.export_format == "coco":
                 self._coco_data = {}  # split_name -> COCO dict
             
-            # Tüm görevleri topla
+            # Collect all tasks
             tasks = []
             for split_name, files in splits.items():
                 if split_name:
@@ -214,13 +214,13 @@ class ExportWorkerV2(QThread):
                 if self.export_format != "coco":
                     labels_dir.mkdir(parents=True, exist_ok=True)
                 
-                # COCO için split başına data structure oluştur
+                # Create data structure per split for COCO
                 if self.export_format == "coco":
                     self._coco_data[split_name] = {
                         "images": [],
                         "annotations": [],
                         "categories": [
-                            {"id": cls.id + 1, "name": cls.name, "supercategory": "none"}  # COCO ID'leri 1'den başlar
+                            {"id": cls.id + 1, "name": cls.name, "supercategory": "none"}  # COCO IDs start from 1
                             for cls in self.exporter.class_manager.classes
                         ]
                     }
@@ -228,12 +228,12 @@ class ExportWorkerV2(QThread):
                 for image_path in files:
                     tasks.append((image_path, images_dir, labels_dir, total_files, split_name))
             
-            # Paralel işleme
+            # Parallel processing
             max_workers = min(os.cpu_count() or 4, 8)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 executor.map(self._process_image, tasks)
             
-            # COCO JSON dosyalarını kaydet
+            # Save COCO JSON files
             if self.export_format == "coco":
                 self._save_coco_json(output_dir, splits)
             
@@ -245,7 +245,7 @@ class ExportWorkerV2(QThread):
             self.error.emit(f"{e}\n{traceback.format_exc()}")
     
     def _process_image(self, task):
-        """Tek bir görseli işle (thread-safe)."""
+        """Process a single image (thread-safe)."""
         image_path, images_dir, labels_dir, total_files, split_name = task
         
         try:
@@ -271,13 +271,13 @@ class ExportWorkerV2(QThread):
                 else:
                     resize_info = {}
                 
-                # Roboflow tarzı isimlendirme
-                orig_filename = image_path.name  # örn: asd9.jpg
+                # Roboflow style naming
+                orig_filename = image_path.name  # e.g: asd9.jpg
                 if aug_idx == 0:
-                    # Orijinal görsel - ismi aynen koru
+                    # Original image - keep name as is
                     new_name = image_path.stem
                 else:
-                    # Augmented görsel - unique ID oluştur
+                    # Augmented image - generate unique ID
                     unique_id = self._generate_unique_id(orig_filename, aug_idx, transform)
                     new_name = f"{orig_filename}.rf.{unique_id}"
                 
@@ -309,7 +309,7 @@ class ExportWorkerV2(QThread):
                         )
                 else:
                     if self.export_format == "coco":
-                        # COCO için boş image entry ekle
+                        # Add empty image entry for COCO
                         self._add_coco_annotation(
                             None, transform, resize_info,
                             split_name, f"{new_name}.jpg",
@@ -317,7 +317,7 @@ class ExportWorkerV2(QThread):
                             aug_img.shape[1], aug_img.shape[0]
                         )
                     elif self.export_format == "voc":
-                        pass  # Boş annotation için XML oluşturmaya gerek yok
+                        pass  # No need to generate XML for empty annotation
                     else:
                         (labels_dir / f"{new_name}.txt").touch()
                 
@@ -331,14 +331,14 @@ class ExportWorkerV2(QThread):
     
     def _add_coco_annotation(self, annotations, transform, resize_info,
                               split_name, image_filename, orig_w, orig_h, new_w, new_h):
-        """COCO formatında annotation ekle (thread-safe)."""
+        """Add annotation in COCO format (thread-safe)."""
         with self._lock:
             coco_data = self._coco_data[split_name]
             
-            # Image ID (mevcut image sayısına göre)
+            # Image ID (based on current image count)
             image_id = len(coco_data["images"]) + 1
             
-            # Image entry ekle
+            # Add image entry
             coco_data["images"].append({
                 "id": image_id,
                 "file_name": image_filename,
@@ -349,55 +349,60 @@ class ExportWorkerV2(QThread):
             if annotations is None:
                 return
             
-            # Cutout bölgelerini al (varsa)
+            # Get cutout regions (if any)
             cutout_regions = []
             if transform and "cutout" in transform:
                 cutout_regions = transform["cutout"].get("regions", [])
             
-            # Annotation ID (mevcut annotation sayısına göre)
+            # Annotation ID (based on current annotation count)
             ann_id = len(coco_data["annotations"]) + 1
             
-            # BBox'ları ekle
+            # Add BBoxes
             for bbox in annotations.bboxes:
                 coords = (bbox.x_center, bbox.y_center, bbox.width, bbox.height)
                 
-                # Cutout kontrolü (%90+ kaplama varsa atla)
+                # Cutout check (skip if covered 90%+)
                 if cutout_regions:
                     if self.augmentor.is_bbox_covered_by_cutout(coords, cutout_regions, orig_w, orig_h, 0.9):
                         continue
                 
                 if transform:
                     coords = self.augmentor.transform_bbox(coords, transform, orig_w, orig_h)
+                
+                # Resize and Duplicate check
                 if resize_info:
-                    coords = self.augmentor.transform_bbox_for_resize(
+                    final_bboxes = self.augmentor.get_resize_duplicates_bbox(
                         coords, resize_info, orig_w, orig_h, new_w, new_h)
+                else:
+                    final_bboxes = [coords]
                 
-                x_c, y_c, w, h = coords
-                # YOLO formatından COCO formatına (x, y, width, height - üst sol köşe)
-                x = (x_c - w/2) * new_w
-                y = (y_c - h/2) * new_h
-                width = w * new_w
-                height = h * new_h
-                
-                coco_data["annotations"].append({
-                    "id": ann_id,
-                    "image_id": image_id,
-                    "category_id": bbox.class_id + 1,  # COCO kategorileri 1'den başlar
-                    "bbox": [round(x, 2), round(y, 2), round(width, 2), round(height, 2)],
-                    "area": round(width * height, 2),
-                    "segmentation": [],  # BBox için boş segmentasyon
-                    "iscrowd": 0
-                })
-                ann_id += 1
+                for final_bbox in final_bboxes:
+                    x_c, y_c, w, h = final_bbox
+                    # YOLO format from COCO format (x, y, width, height - top-left corner)
+                    x = (x_c - w/2) * new_w
+                    y = (y_c - h/2) * new_h
+                    width = w * new_w
+                    height = h * new_h
+                    
+                    coco_data["annotations"].append({
+                        "id": ann_id,
+                        "image_id": image_id,
+                        "category_id": bbox.class_id + 1,  # COCO categories start from 1
+                        "bbox": [round(x, 2), round(y, 2), round(width, 2), round(height, 2)],
+                        "area": round(width * height, 2),
+                        "segmentation": [],  # Empty segmentation for BBox
+                        "iscrowd": 0
+                    })
+                    ann_id += 1
             
-            # Polygon'ları ekle (segmentasyon olarak)
+            # Add Polygons (as segmentation)
             for polygon in annotations.polygons:
                 if len(polygon.points) < 3:
                     continue
                 
                 points = polygon.points
                 
-                # Cutout kırpma: Polygon'dan cutout bölgelerini çıkar
+                # Cutout clipping: Remove cutout regions from Polygon
                 if cutout_regions:
                     clipped_polygons = self.augmentor.apply_cutout_to_polygon(
                         points, cutout_regions, orig_w, orig_h
@@ -405,62 +410,60 @@ class ExportWorkerV2(QThread):
                 else:
                     clipped_polygons = [points]
                 
-                # Her kırpılmış polygon için ayrı annotation ekle
+                # Add separate annotation for each clipped polygon
                 for clipped_points in clipped_polygons:
                     if len(clipped_points) < 3:
                         continue
                     
-                    final_points = clipped_points
+                    final_points_list = [clipped_points]
+                    
                     if transform:
-                        final_points = self.augmentor.transform_polygon(final_points, transform, orig_w, orig_h)
+                        # Apply transform
+                        new_points = self.augmentor.transform_polygon(clipped_points, transform, orig_w, orig_h)
+                        final_points_list = [new_points]
                     
-                    # Segmentasyon için düzleştirilmiş koordinat listesi [x1, y1, x2, y2, ...]
-                    seg_points = []
-                    min_x = float('inf')
-                    min_y = float('inf')
-                    max_x = float('-inf')
-                    max_y = float('-inf')
-                    
-                    for px, py in final_points:
-                        # Resize dönüşümü uygula (koordinatlar normalize)
+                    # Get resize and duplicates
+                    processed_polygons = []
+                    for pts in final_points_list:
                         if resize_info:
-                            mode = resize_info.get("mode")
-                            if mode and mode.startswith("fit_"):
-                                scale = resize_info.get("scale", 1.0)
-                                offset = resize_info.get("offset", (0, 0))
-                                px_abs = px * orig_w * scale + offset[0]
-                                py_abs = py * orig_h * scale + offset[1]
-                            elif mode == "fill_crop":
-                                scale = resize_info.get("scale", 1.0)
-                                crop_offset = resize_info.get("crop_offset", (0, 0))
-                                px_abs = px * orig_w * scale - crop_offset[0]
-                                py_abs = py * orig_h * scale - crop_offset[1]
-                            else:
-                                px_abs = px * new_w
-                                py_abs = py * new_h
+                            dups = self.augmentor.get_resize_duplicates_polygon(
+                                pts, resize_info, orig_w, orig_h, new_w, new_h
+                            )
+                            processed_polygons.extend(dups)
                         else:
+                            processed_polygons.append(pts)
+                            
+                    for poly_pts in processed_polygons:
+                        # Flattened coordinate list for segmentation [x1, y1, x2, y2, ...]
+                        seg_points = []
+                        min_x = float('inf')
+                        min_y = float('inf')
+                        max_x = float('-inf')
+                        max_y = float('-inf')
+                        
+                        for px, py in poly_pts:
                             px_abs = px * new_w
                             py_abs = py * new_h
-                        
-                        seg_points.extend([round(px_abs, 2), round(py_abs, 2)])
-                        min_x = min(min_x, px_abs)
-                        min_y = min(min_y, py_abs)
-                        max_x = max(max_x, px_abs)
-                        max_y = max(max_y, py_abs)
+                            
+                            seg_points.extend([round(px_abs, 2), round(py_abs, 2)])
+                            min_x = min(min_x, px_abs)
+                            min_y = min(min_y, py_abs)
+                            max_x = max(max_x, px_abs)
+                            max_y = max(max_y, py_abs)
                     
-                    # Bounding box hesapla (polygon'dan)
+                    # Calculate bounding box (from polygon)
                     bbox_x = min_x
                     bbox_y = min_y
                     bbox_w = max_x - min_x
                     bbox_h = max_y - min_y
                     
-                    # Alan hesapla (shoelace formülü)
+                    # Calculate area (shoelace formula)
                     area = 0.0
-                    n = len(final_points)
+                    n = len(poly_pts)
                     for i in range(n):
                         j = (i + 1) % n
-                        x1, y1 = final_points[i]
-                        x2, y2 = final_points[j]
+                        x1, y1 = poly_pts[i]
+                        x2, y2 = poly_pts[j]
                         area += (x1 * new_w) * (y2 * new_h)
                         area -= (x2 * new_w) * (y1 * new_h)
                     area = abs(area) / 2.0
@@ -468,16 +471,16 @@ class ExportWorkerV2(QThread):
                     coco_data["annotations"].append({
                         "id": ann_id,
                         "image_id": image_id,
-                        "category_id": polygon.class_id + 1,  # COCO kategorileri 1'den başlar
+                        "category_id": polygon.class_id + 1,  # COCO categories start from 1
                         "bbox": [round(bbox_x, 2), round(bbox_y, 2), round(bbox_w, 2), round(bbox_h, 2)],
                         "area": round(area, 2),
-                        "segmentation": [seg_points],  # Polygon noktaları
+                        "segmentation": [seg_points],  # Polygon points
                         "iscrowd": 0
                     })
                     ann_id += 1
     
     def _save_coco_json(self, output_dir: Path, splits: dict):
-        """COCO JSON dosyalarını kaydet."""
+        """Save COCO JSON files."""
         import json
         
         for split_name, coco_data in self._coco_data.items():
@@ -493,7 +496,7 @@ class ExportWorkerV2(QThread):
                                    output_path, orig_w, orig_h, new_w, new_h):
         lines = []
         
-        # Cutout bölgelerini al (varsa)
+        # Get cutout regions (if any)
         cutout_regions = []
         if transform and "cutout" in transform:
             cutout_regions = transform["cutout"].get("regions", [])
@@ -501,50 +504,81 @@ class ExportWorkerV2(QThread):
         for bbox in annotations.bboxes:
             coords = (bbox.x_center, bbox.y_center, bbox.width, bbox.height)
             
-            # Cutout kontrolü (%90+ kaplama varsa atla)
+            # Cutout check (skip if covered 90%+)
             if cutout_regions:
                 if self.augmentor.is_bbox_covered_by_cutout(coords, cutout_regions, orig_w, orig_h, 0.9):
-                    continue  # Bu bbox'ı kaydetme
+                    continue  # Don't save this bbox
             
             if transform:
                 coords = self.augmentor.transform_bbox(coords, transform, orig_w, orig_h)
+            
+            # Resize and Duplicate check
             if resize_info:
-                coords = self.augmentor.transform_bbox_for_resize(
+                final_bboxes = self.augmentor.get_resize_duplicates_bbox(
                     coords, resize_info, orig_w, orig_h, new_w, new_h)
-            x_c, y_c, w, h = coords
-            lines.append(f"{bbox.class_id} {x_c:.6f} {y_c:.6f} {w:.6f} {h:.6f}")
+            else:
+                final_bboxes = [coords]
+            
+            for final_bbox in final_bboxes:
+                x_c, y_c, w, h = final_bbox
+                lines.append(f"{bbox.class_id} {x_c:.6f} {y_c:.6f} {w:.6f} {h:.6f}")
         
         for polygon in annotations.polygons:
             if len(polygon.points) >= 3:
                 points = polygon.points
                 
-                # Cutout kırpma: Polygon'dan cutout bölgelerini çıkar
+                # Cutout clipping: Remove cutout regions from Polygon
                 if cutout_regions:
                     clipped_polygons = self.augmentor.apply_cutout_to_polygon(
                         points, cutout_regions, orig_w, orig_h
                     )
                     
-                    # Kırpma sonucu birden fazla polygon oluşabilir
+                    # Clipping result can be multiple polygons
                     for clipped_points in clipped_polygons:
                         if len(clipped_points) >= 3:
-                            final_points = clipped_points
+                            final_points_list = [clipped_points]
                             if transform:
-                                final_points = self.augmentor.transform_polygon(final_points, transform, orig_w, orig_h)
-                            points_str = " ".join(f"{x:.6f} {y:.6f}" for x, y in final_points)
-                            lines.append(f"{polygon.class_id} {points_str}")
+                                final_points_list = [self.augmentor.transform_polygon(clipped_points, transform, orig_w, orig_h)]
+                            
+                            processed_polygons = []
+                            for pts in final_points_list:
+                                if resize_info:
+                                    dups = self.augmentor.get_resize_duplicates_polygon(
+                                        pts, resize_info, orig_w, orig_h, new_w, new_h
+                                    )
+                                    processed_polygons.extend(dups)
+                                else:
+                                    processed_polygons.append(pts)
+                            
+                            for pts in processed_polygons:
+                                points_str = " ".join(f"{x:.6f} {y:.6f}" for x, y in pts)
+                                lines.append(f"{polygon.class_id} {points_str}")
                 else:
-                    # Cutout yoksa normal işle
+                    # Process normally if no cutout
+                    points_list = [points]
                     if transform:
-                        points = self.augmentor.transform_polygon(points, transform, orig_w, orig_h)
-                    points_str = " ".join(f"{x:.6f} {y:.6f}" for x, y in points)
-                    lines.append(f"{polygon.class_id} {points_str}")
+                        points_list = [self.augmentor.transform_polygon(points, transform, orig_w, orig_h)]
+                    
+                    processed_polygons = []
+                    for pts in points_list:
+                         if resize_info:
+                             dups = self.augmentor.get_resize_duplicates_polygon(
+                                 pts, resize_info, orig_w, orig_h, new_w, new_h
+                             )
+                             processed_polygons.extend(dups)
+                         else:
+                             processed_polygons.append(pts)
+
+                    for pts in processed_polygons:
+                        points_str = " ".join(f"{x:.6f} {y:.6f}" for x, y in pts)
+                        lines.append(f"{polygon.class_id} {points_str}")
         
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
     
     def _save_voc_xml(self, annotations, transform, resize_info,
                       output_path, image_filename, orig_w, orig_h, new_w, new_h):
-        """Pascal VOC XML formatında etiket kaydet."""
+        """Save label in Pascal VOC XML format."""
         from xml.etree.ElementTree import Element, SubElement, tostring
         from xml.dom import minidom
         
@@ -553,14 +587,14 @@ class ExportWorkerV2(QThread):
         # Root element
         annotation = Element('annotation')
         
-        # Folder ve filename
+        # Folder and filename
         SubElement(annotation, 'folder').text = 'images'
         SubElement(annotation, 'filename').text = image_filename
-        SubElement(annotation, 'path').text = image_filename  # Basit path
+        SubElement(annotation, 'path').text = image_filename  # Simple path
         
         # Source
         source = SubElement(annotation, 'source')
-        SubElement(source, 'database').text = 'LocalFlow'
+        SubElement(source, 'database').text = 'LocalTagger'
         
         # Size
         size = SubElement(annotation, 'size')
@@ -578,34 +612,39 @@ class ExportWorkerV2(QThread):
             coords = (bbox.x_center, bbox.y_center, bbox.width, bbox.height)
             if transform:
                 coords = self.augmentor.transform_bbox(coords, transform, orig_w, orig_h)
+            
+            # Resize and Duplicate check
             if resize_info:
-                coords = self.augmentor.transform_bbox_for_resize(
+                final_bboxes = self.augmentor.get_resize_duplicates_bbox(
                     coords, resize_info, orig_w, orig_h, new_w, new_h)
+            else:
+                final_bboxes = [coords]
             
-            x_c, y_c, w, h = coords
-            # YOLO formatından VOC formatına (xmin, ymin, xmax, ymax)
-            xmin = int((x_c - w/2) * new_w)
-            ymin = int((y_c - h/2) * new_h)
-            xmax = int((x_c + w/2) * new_w)
-            ymax = int((y_c + h/2) * new_h)
-            
-            # Sınırları kontrol et
-            xmin = max(0, min(new_w, xmin))
-            xmax = max(0, min(new_w, xmax))
-            ymin = max(0, min(new_h, ymin))
-            ymax = max(0, min(new_h, ymax))
-            
-            obj = SubElement(annotation, 'object')
-            SubElement(obj, 'name').text = class_names.get(bbox.class_id, f'class_{bbox.class_id}')
-            SubElement(obj, 'pose').text = 'Unspecified'
-            SubElement(obj, 'truncated').text = '0'
-            SubElement(obj, 'difficult').text = '0'
-            
-            bndbox = SubElement(obj, 'bndbox')
-            SubElement(bndbox, 'xmin').text = str(xmin)
-            SubElement(bndbox, 'ymin').text = str(ymin)
-            SubElement(bndbox, 'xmax').text = str(xmax)
-            SubElement(bndbox, 'ymax').text = str(ymax)
+            for final_bbox in final_bboxes:
+                x_c, y_c, w, h = final_bbox
+                # YOLO format to VOC format (xmin, ymin, xmax, ymax)
+                xmin = int((x_c - w/2) * new_w)
+                ymin = int((y_c - h/2) * new_h)
+                xmax = int((x_c + w/2) * new_w)
+                ymax = int((y_c + h/2) * new_h)
+                
+                # Check boundaries
+                xmin = max(0, min(new_w, xmin))
+                xmax = max(0, min(new_w, xmax))
+                ymin = max(0, min(new_h, ymin))
+                ymax = max(0, min(new_h, ymax))
+                
+                obj = SubElement(annotation, 'object')
+                SubElement(obj, 'name').text = class_names.get(bbox.class_id, f'class_{bbox.class_id}')
+                SubElement(obj, 'pose').text = 'Unspecified'
+                SubElement(obj, 'truncated').text = '0'
+                SubElement(obj, 'difficult').text = '0'
+                
+                bndbox = SubElement(obj, 'bndbox')
+                SubElement(bndbox, 'xmin').text = str(xmin)
+                SubElement(bndbox, 'ymin').text = str(ymin)
+                SubElement(bndbox, 'xmax').text = str(xmax)
+                SubElement(bndbox, 'ymax').text = str(ymax)
         
         # Pretty print XML
         xml_str = minidom.parseString(tostring(annotation)).toprettyxml(indent="  ")
@@ -625,10 +664,10 @@ class ExportWorkerV2(QThread):
                     f.write("\n".join(lines))
     
     def _generate_unique_id(self, orig_filename: str, aug_idx: int, transform: dict) -> str:
-        """Roboflow tarzı deterministik unique ID üret."""
+        """Generate Roboflow-style deterministic unique ID."""
         import hashlib
         
-        # Transform'u string'e çevir (sıralı ve deterministik)
+        # Convert transform to string (sorted and deterministic)
         transform_parts = []
         for key in sorted(transform.keys()):
             val = transform[key]
@@ -640,17 +679,17 @@ class ExportWorkerV2(QThread):
                 val_str = str(val)
             transform_parts.append(f"{key}{val_str}")
         
-        # Hash oluştur: filename + aug_idx + transform
+        # Create hash: filename + aug_idx + transform
         hash_input = f"{orig_filename}_{aug_idx}_{'_'.join(transform_parts)}"
         hash_bytes = hashlib.md5(hash_input.encode()).hexdigest()
         
-        # İlk 6 karakter al (Roboflow tarzı kısa ID)
+        # Take first 6 chars (Roboflow style short ID)
         return hash_bytes[:6]
     
     def _read_image(self, path: str) -> np.ndarray:
-        """Türkçe karakter destekli görsel okuma."""
+        """Read image with Turkish character support."""
         try:
-            # Doğrudan binary okuma (Türkçe karakter sorununu önler)
+            # Direct binary read (avoids Turkish character issue)
             with open(path, 'rb') as f:
                 data = np.frombuffer(f.read(), np.uint8)
             return cv2.imdecode(data, cv2.IMREAD_COLOR)
@@ -658,14 +697,14 @@ class ExportWorkerV2(QThread):
             return None
     
     def _write_image(self, path: str, img: np.ndarray) -> bool:
-        """Türkçe karakter destekli görsel yazma."""
+        """Write image with Turkish character support."""
         try:
-            # Önce normal cv2.imwrite dene
+            # Try normal cv2.imwrite first
             success = cv2.imwrite(path, img)
             if success:
                 return True
             
-            # Türkçe karakter sorunu varsa binary yazma yap
+            # If Turkish character issue, write binary
             ext = Path(path).suffix.lower()
             if ext in ['.jpg', '.jpeg']:
                 encode_param = [cv2.IMWRITE_JPEG_QUALITY, 95]
@@ -681,7 +720,7 @@ class ExportWorkerV2(QThread):
 
 
 class AugmentationSlider(QWidget):
-    """Augmentation parametresi için slider widget."""
+    """Slider widget for augmentation parameter."""
     
     valueChanged = Signal()
     
@@ -698,7 +737,7 @@ class AugmentationSlider(QWidget):
         self.checkbox.setMinimumWidth(130)
         layout.addWidget(self.checkbox)
         
-        # Yardım ikonu (tooltip ile)
+        # Help icon (with tooltip)
         if help_text:
             self.help_label = QLabel("?")
             self.help_label.setFixedSize(18, 18)
@@ -763,7 +802,7 @@ class AugmentationSlider(QWidget):
 
 class ExportWizard(QDialog):
     """
-    Adım adım export wizard.
+    Step-by-step export wizard.
     Step 1: Dataset Split
     Step 2: Augmentation
     Step 3: Format & Export
@@ -784,7 +823,7 @@ class ExportWizard(QDialog):
         
         self._augmentor = Augmentor()
         self._preview_image = None
-        self._last_brightness_effect = None  # Son seçilen parlaklık efekti: 'brighten' veya 'darken'
+        self._last_brightness_effect = None  # Last selected brightness effect: 'brighten' or 'darken'
         
         self.setWindowTitle(self.tr("Export Wizard"))
         self.setMinimumWidth(800)
@@ -864,13 +903,13 @@ class ExportWizard(QDialog):
         self.range_slider = RangeSlider()
         split_layout.addWidget(self.range_slider)
         
-        # Özet label
+        # Summary label
         self.split_info = QLabel("Train: 70% | Validation: 20% | Test: 10%")
         self.split_info.setStyleSheet("font-size: 12px; color: #666; padding: 5px;")
         self.split_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         split_layout.addWidget(self.split_info)
         
-        self.split_group.setEnabled(True)  # Default olarak aktif
+        self.split_group.setEnabled(True)  # Active by default
         layout.addWidget(self.split_group)
         
         # Shuffle & Seed
@@ -890,7 +929,7 @@ class ExportWizard(QDialog):
         seed_layout.addStretch()
         shuffle_layout.addLayout(seed_layout)
         
-        self.shuffle_group.setEnabled(True)  # Default olarak aktif
+        self.shuffle_group.setEnabled(True)  # Active by default
         layout.addWidget(self.shuffle_group)
         
         # Unlabeled files option
@@ -912,7 +951,7 @@ class ExportWizard(QDialog):
         
         layout.addWidget(self.unlabeled_group)
         
-        # Görsel sayısı özeti
+        # Image count summary
         self.split_summary = QLabel()
         self.split_summary.setStyleSheet("color: #888; padding: 10px; font-size: 12px;")
         layout.addWidget(self.split_summary)
@@ -926,7 +965,7 @@ class ExportWizard(QDialog):
         page = QWidget()
         main_layout = QHBoxLayout(page)
         
-        # Sol panel
+        # Left panel
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 10, 0)
@@ -975,7 +1014,7 @@ class ExportWizard(QDialog):
         mode_layout.addWidget(QLabel(self.tr("Mode:")))
         self.resize_mode = QComboBox()
         self.resize_mode.addItems([
-            "Stretch to", "Fill (center crop)", "Fit within",
+            "Stretch to", "Fit within",
             "Fit (reflect edges)", "Fit (black edges)", "Fit (white edges)"
         ])
         mode_layout.addWidget(self.resize_mode)
@@ -986,7 +1025,7 @@ class ExportWizard(QDialog):
         aug_group = QGroupBox(self.tr("Augmentation Parameters"))
         aug_layout = QVBoxLayout(aug_group)
         
-        # Parlaklık - Roboflow tarzı Brighten/Darken checkboxları
+        # Brightness - Roboflow style Brighten/Darken checkboxes
         brightness_group = QGroupBox(self.tr("Brightness"))
         brightness_group.setToolTip(
             self.tr("Brightness: Adjusts the light/dark level of the image.\n\n"
@@ -1093,7 +1132,7 @@ class ExportWizard(QDialog):
         )
         aug_layout.addWidget(self.hue_slider)
         
-        # Grayscale (yüzde kontrolü ile)
+        # Grayscale (with percentage control)
         grayscale_group = QGroupBox(self.tr("Grayscale"))
         grayscale_group.setToolTip(
             self.tr("Grayscale: Converts the image to black and white.\n\n"
@@ -1114,7 +1153,7 @@ class ExportWizard(QDialog):
         
         aug_layout.addWidget(grayscale_group)
         
-        # YENİ: Exposure
+        # NEW: Exposure
         self.exposure_slider = AugmentationSlider(
             self.tr("Exposure"), 50, 200, 150, "%",
             help_text=self.tr("Exposure (Gamma): Adjusts light exposure.\n\n"
@@ -1125,7 +1164,7 @@ class ExportWizard(QDialog):
         )
         aug_layout.addWidget(self.exposure_slider)
         
-        # YENİ: Cutout - Tek checkbox, boyut, adet ve uygulama yüzdesi
+        # NEW: Cutout - Single checkbox, size, count and application percentage
         cutout_group = QGroupBox(self.tr("Cutout"))
         cutout_group.setToolTip(
             self.tr("Cutout: Adds random black squares to the image.\n\n"
@@ -1164,7 +1203,7 @@ class ExportWizard(QDialog):
         
         aug_layout.addWidget(cutout_group)
         
-        # YENİ: Motion Blur
+        # NEW: Motion Blur
         self.motion_blur_slider = AugmentationSlider(
             self.tr("Motion Blur"), 0, 30, 15, "",
             help_text=self.tr("Motion Blur: Adds horizontal motion effect.\n\n"
@@ -1173,7 +1212,7 @@ class ExportWizard(QDialog):
         )
         aug_layout.addWidget(self.motion_blur_slider)
         
-        # YENİ: Shear - Tek checkbox, yatay ve dikey
+        # NEW: Shear - Single checkbox, horizontal and vertical
         shear_group = QGroupBox(self.tr("Shear"))
         shear_group.setToolTip(
             self.tr("Shear: Tilts the image horizontally/vertically.\n\n"
@@ -1310,8 +1349,8 @@ class ExportWizard(QDialog):
         
         self.aug_enabled.toggled.connect(self._on_aug_toggled)
         
-        # Her slider için ayrı tracking
-        # Parlaklık - yeni UI
+        # Separate tracking for each slider
+        # Brightness - new UI
         self.brightness_slider_value.valueChanged.connect(self._on_brightness_value_changed)
         self.brighten_checkbox.toggled.connect(lambda: self._on_brightness_checkbox_changed('brighten'))
         self.darken_checkbox.toggled.connect(lambda: self._on_brightness_checkbox_changed('darken'))
@@ -1335,12 +1374,12 @@ class ExportWizard(QDialog):
         self.shear_h_spin.valueChanged.connect(lambda: self._on_slider_changed('shear'))
         self.shear_v_spin.valueChanged.connect(lambda: self._on_slider_changed('shear'))
         
-        # Flip group (yüzde kontrolü ile)
+        # Flip group (with percentage control)
         self.flip_enabled.toggled.connect(lambda: self._on_slider_changed('flip'))
         self.hflip_percent_spin.valueChanged.connect(lambda: self._on_slider_changed('flip'))
         self.vflip_percent_spin.valueChanged.connect(lambda: self._on_slider_changed('flip'))
         
-        # Grayscale group (yüzde kontrolü ile)
+        # Grayscale group (with percentage control)
         self.grayscale_enabled.toggled.connect(lambda: self._on_slider_changed('grayscale'))
         self.grayscale_percent_spin.valueChanged.connect(lambda: self._on_slider_changed('grayscale'))
         
@@ -1390,7 +1429,7 @@ class ExportWizard(QDialog):
         self._update_split_summary()
     
     def _update_split_summary(self):
-        # Filtrelenmiş dosya sayısını kullan
+        # Use filtered file count
         filtered_files = self._get_filtered_image_files()
         total = len(filtered_files)
         
@@ -1406,43 +1445,43 @@ class ExportWizard(QDialog):
         self.split_summary.setText(self.tr("📂 Train: {} images | Val: {} images | Test: {} images").format(train, val, test))
     
     def _on_unlabeled_toggled(self, checked: bool):
-        """Etiketsiz checkbox değiştiğinde tüm bölümleri güncelle."""
+        """Update all sections when unlabeled checkbox toggles."""
         self._update_split_summary()
         self._update_multiplier_options()
-        # Export sayfasındaysa summary'yi de güncelle
+        # Update summary if on export page
         if self.stack.currentIndex() == 2:
             self._update_export_summary()
     
     def _update_multiplier_options(self):
-        """Çarpan seçeneklerini görsel sayısıyla güncelle."""
-        # Filtrelenmiş dosya sayısını kullan
+        """Update multiplier options with image count."""
+        # Use filtered file count
         filtered = self._get_filtered_image_files()
         count = len(filtered)
         self.aug_multiplier.clear()
         for mult in [2, 3, 5, 8, 10, 15]:
-            # Roboflow tarzı: 1 orijinal + (mult-1) augmented = toplam mult görsel
+            # Roboflow style: 1 original + (mult-1) augmented = total mult images
             self.aug_multiplier.addItem(self.tr("{}x → {} images (1 original + {} augmented)").format(mult, count * mult, mult-1))
     
     def _on_slider_changed(self, slider_name: str):
-        """Hangi slider'ın değiştiğini takip et ve önizlemeyi güncelle."""
+        """Track which slider changed and update preview."""
         self._last_changed_slider = slider_name
         self._schedule_preview()
     
     def _on_aug_toggled(self, enabled):
         if enabled:
-            self._last_changed_slider = None  # Tümünü göster
+            self._last_changed_slider = None  # Show all
             self._update_preview()
         else:
             self.preview_label.setText("Augmentation'ı aktifleştirin")
     
     def _on_brightness_value_changed(self, value):
-        """Parlaklık slider değeri değiştiğinde."""
+        """When brightness slider value changes."""
         self.brightness_value_label.setText(f"{value}%")
         self._schedule_preview()
     
     def _on_brightness_checkbox_changed(self, checkbox_type: str):
-        """Brighten veya Darken checkbox değiştiğinde."""
-        # Son seçilen efekti takip et (canlı önizleme için)
+        """When Brighten or Darken checkbox changes."""
+        # Track last selected effect (for live preview)
         if checkbox_type == 'brighten' and self.brighten_checkbox.isChecked():
             self._last_brightness_effect = 'brighten'
         elif checkbox_type == 'darken' and self.darken_checkbox.isChecked():
@@ -1462,7 +1501,7 @@ class ExportWizard(QDialog):
             img_path = str(first_image) if hasattr(first_image, '__fspath__') else first_image
             
             try:
-                # Önce binary okuma dene (Türkçe karakter sorununu önler)
+                # Try binary read first (avoids Turkish character issue)
                 with open(img_path, 'rb') as f:
                     data = np.frombuffer(f.read(), np.uint8)
                 self._preview_image = cv2.imdecode(data, cv2.IMREAD_COLOR)
@@ -1482,7 +1521,7 @@ class ExportWizard(QDialog):
             return
         
         try:
-            # Son ayarlanan augmentation'ı belirle
+            # Determine last adjusted augmentation
             last_slider = getattr(self, '_last_changed_slider', None)
             config = self._get_single_augmentation_config(last_slider)
             aug_img = self._augmentor.preview(self._preview_image.copy(), config)
@@ -1495,9 +1534,9 @@ class ExportWizard(QDialog):
             h, w, ch = rgb_img.shape
             bytes_per_line = ch * w
             
-            # QImage oluştur
+            # Create QImage
             qt_img = QImage(rgb_img.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-            qt_img = qt_img.copy()  # Data'yı kopyala
+            qt_img = qt_img.copy()  # Copy data
             
             pixmap = QPixmap.fromImage(qt_img)
             scaled = pixmap.scaled(
@@ -1523,7 +1562,7 @@ class ExportWizard(QDialog):
             self.output_path.setText(folder)
     
     def _update_export_summary(self):
-        # Filtrelenmiş dosya sayısını kullan
+        # Use filtered file count
         filtered = self._get_filtered_image_files()
         total = len(filtered)
         
@@ -1549,19 +1588,19 @@ class ExportWizard(QDialog):
     
     def _get_augmentation_config(self) -> AugmentationConfig:
         resize_mode_map = {
-            0: ResizeMode.STRETCH, 1: ResizeMode.FILL_CENTER_CROP,
-            2: ResizeMode.FIT_WITHIN, 3: ResizeMode.FIT_REFLECT,
-            4: ResizeMode.FIT_BLACK, 5: ResizeMode.FIT_WHITE
+            0: ResizeMode.STRETCH,
+            1: ResizeMode.FIT_WITHIN, 2: ResizeMode.FIT_REFLECT,
+            3: ResizeMode.FIT_BLACK, 4: ResizeMode.FIT_WHITE
         }
         
-        # "2x → 24 görsel" formatından sadece çarpanı al
+        # Extract only multiplier from "2x -> 24 images" format
         mult_text = self.aug_multiplier.currentText().split('x')[0]
         multiplier = int(mult_text) if mult_text.isdigit() else 2
         
         return AugmentationConfig(
             enabled=self.aug_enabled.isChecked(),
             multiplier=multiplier,
-            # Yeni parlaklık sistemi - Brighten ve Darken ayrı
+            # New brightness system - Brighten and Darken separate
             brighten_enabled=self.brighten_checkbox.isChecked(),
             darken_enabled=self.darken_checkbox.isChecked(),
             brightness_value=self.brightness_slider_value.value() / 100,
@@ -1601,20 +1640,20 @@ class ExportWizard(QDialog):
         )
     
     def _get_single_augmentation_config(self, slider_name: str = None) -> AugmentationConfig:
-        """Sadece belirtilen augmentation'ı aktif eden config döndür."""
+        """Return config activating only specified augmentation."""
         resize_mode_map = {
-            0: ResizeMode.STRETCH, 1: ResizeMode.FILL_CENTER_CROP,
-            2: ResizeMode.FIT_WITHIN, 3: ResizeMode.FIT_REFLECT,
-            4: ResizeMode.FIT_BLACK, 5: ResizeMode.FIT_WHITE
+            0: ResizeMode.STRETCH,
+            1: ResizeMode.FIT_WITHIN, 2: ResizeMode.FIT_REFLECT,
+            3: ResizeMode.FIT_BLACK, 4: ResizeMode.FIT_WHITE
         }
         
-        # Eğer slider_name None ise, tüm aktif augmentation'ları göster
+        # If slider_name is None, show all active augmentations
         show_all = slider_name is None
         
         return AugmentationConfig(
             enabled=True,
             multiplier=1,
-            # Parlaklık - canlı önizleme için son seçilen efekti göster
+            # Brightness - show last selected effect for live preview
             brighten_enabled=(slider_name == 'brightness' or show_all) and self.brighten_checkbox.isChecked() and getattr(self, '_last_brightness_effect', None) == 'brighten',
             darken_enabled=(slider_name == 'brightness' or show_all) and self.darken_checkbox.isChecked() and getattr(self, '_last_brightness_effect', None) == 'darken',
             brightness_value=self.brightness_slider_value.value() / 100,
@@ -1672,8 +1711,8 @@ class ExportWizard(QDialog):
         elif self.coco_radio.isChecked():
             return COCOExporter(self._class_manager)
         elif self.voc_radio.isChecked():
-            # VOC için de YOLO exporter kullanılıyor (class_manager için)
-            # Gerçek format export worker'da belirleniyor
+            # YOLO exporter is used for VOC too (for class_manager)
+            # Actual format is determined in export worker
             return YOLOExporter(self._class_manager, "v8")
         elif self.custom_radio.isChecked():
             if self.custom_type.currentText() == "TXT":
@@ -1692,7 +1731,7 @@ class ExportWizard(QDialog):
         if exporter is None:
             return
         
-        # Etiketsiz dosya filtreleme
+        # Unlabeled file filtering
         image_files = self._get_filtered_image_files()
         
         annotations_dict = {}
@@ -1707,7 +1746,7 @@ class ExportWizard(QDialog):
         self.status_label.setText(self.tr("Starting export..."))
         self.next_btn.setEnabled(False)
         
-        # Format belirleme
+        # Determine format
         format_id = self.format_btn_group.checkedId()
         if format_id == 0:
             export_format = "yolo"
@@ -1749,13 +1788,13 @@ class ExportWizard(QDialog):
         super().closeEvent(event)
     
     def _count_unlabeled_files(self) -> int:
-        """Etiketsiz dosya sayısını hesapla."""
+        """Calculate unlabeled file count."""
         unlabeled = 0
         
         if not self._image_files:
             return 0
         
-        # Labels klasörünü bul
+        # Find labels folder
         first_path = Path(self._image_files[0])
         parent = first_path.parent
         
