@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List, Optional
 from PySide6.QtWidgets import (
     QGraphicsView, QGraphicsLineItem, QGraphicsPolygonItem, 
-    QGraphicsEllipseItem, QGraphicsRectItem
+    QGraphicsEllipseItem, QGraphicsRectItem, QGraphicsItem
 )
 from PySide6.QtCore import Qt, Signal, QPointF, QRectF, QLineF
 from PySide6.QtGui import (
@@ -686,13 +686,23 @@ class AnnotationView(QGraphicsView):
         self._polygon_points.append(pos)
         
         # Add point indicator (first point special appearance)
+        # Add point indicator (first point special appearance)
         is_first = len(self._polygon_points) == 1
-        dot_size = 12 if is_first else 8
-        dot = QGraphicsEllipseItem(x - dot_size/2, y - dot_size/2, dot_size, dot_size)
+        dot_diameter = 12 if is_first else 8
+        
+        # Use ItemIgnoresTransformations to keep dot size constant on screen
+        # Define rect centered at 0,0
+        dot = QGraphicsEllipseItem(
+            -dot_diameter/2, -dot_diameter/2, 
+            dot_diameter, dot_diameter
+        )
+        dot.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+        dot.setPos(x, y)
         
         if is_first:
             # First point different color (closure hint)
             dot.setBrush(QBrush(QColor("#FFD700")))  # Gold
+            # Cosmetic pen is not needed for size, but good for outline
             first_pen = QPen(self._draw_color, 2)
             first_pen.setCosmetic(True)
             dot.setPen(first_pen)

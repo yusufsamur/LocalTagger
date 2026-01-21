@@ -5,6 +5,7 @@ Main window and application coordination.
 """
 
 from pathlib import Path
+from utils.path_utils import get_resource_path
 from PySide6.QtWidgets import QMainWindow, QStatusBar, QFileDialog, QMessageBox
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut, QIcon
@@ -28,7 +29,7 @@ class LocalTaggerApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(self.tr("LocalTagger - Data Annotation Tool"))
-        self.setWindowIcon(QIcon(str(Path(__file__).parent / "resources" / "icon" / "LocalTagger.ico")))
+        self.setWindowIcon(QIcon(str(get_resource_path("resources/icon/LocalTagger.ico"))))
         self.setMinimumSize(1200, 800)
         
         # Language manager (set from main.py)
@@ -1490,9 +1491,10 @@ class LocalTaggerApp(QMainWindow):
     def _setup_sam_worker(self):
         """Start SAM worker."""
         # Model paths
-        resources_dir = Path(__file__).parent / "resources" / "models"
-        encoder_path = resources_dir / "mobile_sam_encoder.onnx"
-        decoder_path = resources_dir / "mobile_sam.onnx"
+        # Model paths
+        # resources_dir = Path(__file__).parent / "resources" / "models"
+        encoder_path = get_resource_path("resources/models/mobile_sam_encoder.onnx")
+        decoder_path = get_resource_path("resources/models/mobile_sam.onnx")
         
         # Create worker
         self._sam_worker = SAMWorker(self)

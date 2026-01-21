@@ -736,7 +736,7 @@ Konum: {}</translation>
     </message>
 </context>
 <context>
-    <name>LocalFlowApp</name>
+    <name>LocalTaggerApp</name>
     <message>
         <source>LocalFlow v2.0 - Data Annotation Tool</source>
         <translation type="vanished">LocalFlow v2.0 - Veri Etiketleme Aracı</translation>

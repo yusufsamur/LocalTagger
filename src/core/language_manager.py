@@ -34,8 +34,8 @@ class LanguageManager(QObject):
         self._current_language = "en"
         self._settings = QSettings("LocalTagger", "Preferences")
         
-        # Find translations directory
-        self._translations_dir = Path(__file__).parent.parent / "translations"
+        from utils.path_utils import get_resource_path
+        self._translations_dir = get_resource_path("translations")
     
     @property
     def current_language(self) -> str:
