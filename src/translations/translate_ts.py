@@ -248,7 +248,7 @@ translations = {
     
     # About dialog content
     'LocalTagger - Data Annotation Tool': 'LocalTagger - Veri Etiketleme Aracı',
-    'Version 2.0': 'Versiyon 2.0',
+    'Version 1.0': 'Versiyon 1.0',
     'A powerful data annotation tool for machine learning datasets.': 'Makine öğrenmesi veri setleri için güçlü bir veri etiketleme aracı.',
     
     # Format types

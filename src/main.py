@@ -28,7 +28,7 @@ def main():
     
     app = QApplication(sys.argv)
     app.setApplicationName("LocalTagger")
-    app.setApplicationVersion("2.0.0")
+    app.setApplicationVersion("1.0.0")
     app.setOrganizationName("LocalTagger")
     
     # Initialize language manager and load saved preference
